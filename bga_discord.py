@@ -6,7 +6,7 @@ import os
 import shlex
 
 from keys import TOKEN, FERNET_KEY
-from bga_mediator import BGAAccount
+from bga_mediator import BGAAccount, get_game_list
 
 
 client = discord.Client()
@@ -34,13 +34,17 @@ async def on_message(message):
         command = args[1]
         discord_id = message.author.id
         if command == "list":
-            print("board game list")
+            game_data = await get_game_list() 
+            game_list = list(game_data.keys())
+            for i in range(len(game_list)//100+1):
+                truncated_games = "\n".join(game_list[i*100: (i+1)*100])
+                await message.channel.send(truncated_games) 
         elif command == "setup":
             if message.guild:  # Don't delete DMs
                 await message.delete()
             if len(args) != 4:
                 await message.author.send("Setup requires a BGA username and "
-                                          "password. You may need to quote both.")
+                    "password. Run `!bga` to see setup examples.")
                 return
             account = BGAAccount()
             logged_in = await account.login(args[2], args[3])
@@ -53,9 +57,11 @@ async def on_message(message):
         elif command == "make":
             login_info = await get_login(discord_id)
             if login_info:
+                login_msg = await message.channel.send("Checking account...")
                 account = BGAAccount()
                 logged_in = await account.login(login_info["username"], login_info["password"])
                 if logged_in:
+                    temp_msg = await message.channel.send("Creating table...")
                     players = args[3:]
                     for i in range(len(players)):
                         # @ mentions look like <@!12345123412341> in message.content
@@ -68,6 +74,8 @@ async def on_message(message):
                                 # This should be non-blocking as not everyone will have it set up
                                 message.channel.send(players[i] + " needs to run !bga setup")
                     table_url = await account.create_table(args[2], args[3:])
+                    await login_msg.delete()
+                    await temp_msg.delete()
                     await message.channel.send("Created table: " + table_url)
                 else:
                     await message.author.send("Bad username or password. Try putting quotes around both.")

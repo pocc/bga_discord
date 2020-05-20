@@ -11,6 +11,21 @@ import aiohttp
 from keys import test_user, test_pass
 
 
+async def get_game_list():
+    """Get the list of games and numbers BGA assigns to each game."""
+    url = 'https://boardgamearena.com/gamelist?section=all'
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            html = await response.text()
+            results = re.findall(r"item_tag_\d+_(\d+)[\s\S]*?name\">\s+([^<>]*)\n", html)
+            # Sorting games isn't necessary, but I prefer it
+            results.sort(key=lambda x: x[1])
+            games = {}
+            for r in results:
+                games[r[1]] = int(r[0])
+            return games
+
+
 class BGAAccount:
     """Account user/pass and methods to login/create games with it."""
     def __init__(self):
@@ -40,18 +55,6 @@ class BGAAccount:
         await self.post(url, params)
         return await self.verify_privileged()
 
-    async def get_games(self):
-        """Get the list of games and numbers BGA assigns to each game."""
-        url = 'https://boardgamearena.com/gamelist?section=all'
-        html = await self.fetch(url)
-        results = re.findall(r"item_tag_\d+_(\d+)[\s\S]*?name\">\s+(.*)\n", html)
-        # Sorting games isn't necessary, but I prefer it
-        results.sort(key=lambda x: x[1])
-        games = {}
-        for r in results:
-            games[r[1].lower()] = int(r[0])
-        return games
-
     async def quit_table(self):
         """ Quit the table if the player is currently at one"""
         url = "https://boardgamearena.com/player"
@@ -73,12 +76,11 @@ class BGAAccount:
 
     async def create_table(self, game_name, players):
         """Create a table and return its url."""
-        lower_game_name = game_name.lower()
         if not isinstance(players, list):
             raise ValueError("Players needs to be a list, not a string")
         await self.quit_table()
         games = await self.get_games()
-        if lower_game_name not in games:
+        if game_name.lower() not in [g.lower() for g in games]:
             return game_name + " is not a known BGA game"
         game_id = games[lower_game_name]
         url = "https://boardgamearena.com/table/table/createnew.html"
@@ -154,19 +156,3 @@ class BGAAccount:
         """Close the connection. aiohttp complains otherwise."""
         await self.session.close()
 
-
-async def test_make_game():
-    """Verify that making a game works as expected"""
-    account = BGAAccount()
-    logged_in = await account.login(test_user, test_pass)
-    if not logged_in:
-        print("problem logging in")
-    game = "Race for the Galaxy"
-    users = ["Alpha 1"]
-    table_url = await account.create_table(game, users)
-    webbrowser.open_new_tab(table_url)
-    await account.close_connection()
-
-if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(test_make_game())

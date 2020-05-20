@@ -3,6 +3,15 @@
 BGA is a bot to help you set up board game arena games in discord.
 These commands will work in any channel @BGA is on and also as direct messages to @BGA.
 
+## Server Bot Setup
+
+Run the following on any VPS
+
+```bash
+pip install -r requirements.txt
+make run
+```
+
 ## Available commands
 
     **list**
@@ -16,7 +25,7 @@ These commands will work in any channel @BGA is on and also as direct messages t
         make is used to create games on BGA using the account details from setup.
         The game is required, but the number of other users can be >= 0.
 
-## Examples
+### Examples
 
     **setup** 
         Example setup of an account:
