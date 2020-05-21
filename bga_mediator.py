@@ -77,9 +77,12 @@ class BGAAccount:
             raise ValueError("Players needs to be a list, not a string")
         await self.quit_table()
         games = await get_game_list()
-        if lower_game_name not in [g.lower() for g in games]:
+        lower_games = {}
+        for game in games:
+            lower_games[game.lower()] = games[game]
+        if lower_game_name not in lower_games.keys():
             return game_name + " is not a known BGA game"
-        game_id = games[lower_game_name]
+        game_id = lower_games[lower_game_name]
         url = "https://boardgamearena.com/table/table/createnew.html"
         params = {
             "game": game_id,
