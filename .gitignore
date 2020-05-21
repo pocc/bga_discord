@@ -1,3 +1,4 @@
 *keys*
 *.swp
 *cache*/
+.idea/

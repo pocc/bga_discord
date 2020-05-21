@@ -1,14 +1,10 @@
 """Create a connection to Board Game Arena and interact with it."""
-import asyncio
-import webbrowser
 import json
 import re
 import time
 import urllib.parse
 
 import aiohttp
-
-from keys import test_user, test_pass
 
 
 async def get_game_list():
@@ -156,4 +152,3 @@ class BGAAccount:
     async def close_connection(self):
         """Close the connection. aiohttp complains otherwise."""
         await self.session.close()
-
