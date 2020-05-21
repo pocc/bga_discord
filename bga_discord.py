@@ -1,9 +1,11 @@
 """Bot to create games on discord."""
 from cryptography.fernet import Fernet
+import datetime
 import discord
 import json
 import os
 import shlex
+import time
 import traceback
 
 from keys import TOKEN, FERNET_KEY
@@ -53,7 +55,7 @@ async def on_message(message):
                 await setup_bga_game(message, game, players)
             except Exception as e:
                 print("Encountered error:", e, "\n", traceback.format_exc())
-                await message.channel.send("Tell Ross to fix his bot.")
+                await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
 
         else:
             await message.author.send(f"You entered invalid command `{command}`. "
@@ -93,13 +95,16 @@ async def setup_bga_game(message, game, players):
     discord_id = message.author.id
     login_info = get_login(discord_id)
     if login_info:
-        await message.channel.send("Establishing connection to BGA...")
+        connection_msg = await message.channel.send("Establishing connection to BGA...")
         account = BGAAccount()
         logged_in = await account.login(login_info["username"], login_info["password"])
         if logged_in:
+            table_msg = await message.channel.send("Creating table...")
             await create_bga_game(message, account, game, players)
+            await table_msg.delete()
         else:
             await message.author.send("Bad username or password. Try putting quotes around both.")
+        await connection_msg.delete()
         await account.close_connection()
     else:
         await message.author.send("You need to run setup before you can make a game. Type !bga for more info.")
@@ -107,12 +112,11 @@ async def setup_bga_game(message, game, players):
 
 async def create_bga_game(message, bga_account, game, players):
     """Create the actual BGA game."""
-    await message.channel.send("Creating table...")
     # If the player is a discord tag, this will be
     # {"bga player": "discord tag"}, otherwise {"bga player":""}
     error_players = []
     bga_discord_user_map = await find_bga_users(players, error_players)
-    bga_players = bga_discord_user_map.keys()
+    bga_players = list(bga_discord_user_map.keys())
     table_id = await bga_account.create_table(game)
     valid_bga_players = []
     invited_players = []
@@ -122,6 +126,10 @@ async def create_bga_game(message, bga_account, game, players):
         await message.channel.send(msg)
         return
     table_url = await bga_account.create_table_url(table_id)
+    author_bga = get_login(message.author.id)["username"]
+    # Don't invite the creator to their own game!
+    if author_bga in bga_players:
+        bga_players.remove(author_bga)
     for bga_player in bga_players:
         bga_player_id = await bga_account.get_player_id(bga_player)
         if bga_player_id == -1:
@@ -140,12 +148,10 @@ async def create_bga_game(message, bga_account, game, players):
                 invited_players.append(f"{discord_tag} (BGA {bga_name})")
             else:
                 invited_players.append(f"(BGA {bga_name}) needs to run `!bga setup` on discord (discord tag not found)")
-    author_bga = get_login(message.author.id)["username"]
     author_str = f"\n:crown: <@!{message.author.id}> (BGA {author_bga})"
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
     error_players_str = "".join(["\n:x: " + p for p in error_players])
-    players_str = author_str + invited_players_str + error_players_str
-    await message.channel.send(f"**{game}** table created: {table_url}\nInvited{players_str}")
+    await send_table_embed(message, game, table_url, author_str, invited_players_str, error_players_str)
 
 
 async def find_bga_users(players, error_players):
@@ -210,6 +216,20 @@ def get_discord_id(bga_name):
         if users[discord_id]["username"] == bga_name:
             return discord_id
     return -1
+
+
+async def send_table_embed(message, game, table_url, author, players, err_players):
+    """Create a discord embed to send the message about table creation."""
+    retmsg = discord.Embed(
+        title=game,
+        description=table_url,
+        color=3447003,
+    )
+    retmsg.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
+    retmsg.add_field(name="Creator", value=author, inline=False)
+    retmsg.add_field(name="Invited", value=players, inline=False)
+    retmsg.add_field(name="Failed to Invite", value=err_players, inline=False)
+    await message.channel.send(embed=retmsg)
 
 
 async def send_help(message):

@@ -107,7 +107,7 @@ class BGAAccount:
         # Set table to normal mode
         await self.set_option(table_id, 201, 0)
         # Set table to no time limit
-        await self.set_option(table_id, 200, 20)
+        # await self.set_option(table_id, 200, 20)
         await self.set_presentation(table_id)
         return table_id
 
