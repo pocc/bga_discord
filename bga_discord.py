@@ -49,7 +49,12 @@ async def on_message(message):
                 return
             game = args[2]
             players = args[3:]
-            await setup_bga_game(message, game, players)
+            try:
+                await setup_bga_game(message, game, players)
+            except Exception as e:
+                print("Encountered error:", e, "\n", traceback.format_exc())
+                await message.channel.send("Tell Ross to fix his bot.")
+
         else:
             await message.author.send(f"You entered invalid command `{command}`. "
                                       f"Valid commands are list, setup, and make.")
@@ -77,7 +82,7 @@ async def setup_bga_account(message, bga_username, bga_password):
     player_id = await account.get_player_id(bga_username)
     await account.close_connection()
     if logged_in:
-        await save_data(discord_id, player_id, bga_username, bga_password)
+        save_data(discord_id, player_id, bga_username, bga_password)
         await message.author.send(f"Account {bga_username} setup successfully.")
     else:
         await message.author.send("Bad username or password. Try putting quotes around both.")
@@ -102,54 +107,73 @@ async def setup_bga_game(message, game, players):
 
 async def create_bga_game(message, bga_account, game, players):
     """Create the actual BGA game."""
-    bga_discord_map = {}
     await message.channel.send("Creating table...")
+    # If the player is a discord tag, this will be
+    # {"bga player": "discord tag"}, otherwise {"bga player":""}
+    error_players = []
+    bga_discord_user_map = await find_bga_users(players, error_players)
+    bga_players = bga_discord_user_map.keys()
+    table_id = await bga_account.create_table(game)
+    valid_bga_players = []
+    invited_players = []
+    if table_id == -1:
+        msg = f"`{game}` is not available on BGA. " \
+            f"Check your spelling (capitalization and special characters do not matter)."
+        await message.channel.send(msg)
+        return
+    table_url = await bga_account.create_table_url(table_id)
+    for bga_player in bga_players:
+        bga_player_id = await bga_account.get_player_id(bga_player)
+        if bga_player_id == -1:
+            error_players.append(f"`{bga_player}` is not a BGA player")
+        else:
+            await bga_account.invite_player(table_id, bga_player_id)
+            valid_bga_players.append(bga_player)
+    for bga_name in valid_bga_players:
+        discord_tag = bga_discord_user_map[bga_name]
+        if len(discord_tag) > 0:  # If the player was passed in as a discord tag
+            invited_players.append(f"{discord_tag} (BGA {bga_name})")
+        else:  # If the player was passed in as a BGA player name
+            discord_id = get_discord_id(bga_name)
+            if discord_id != -1:
+                discord_tag = f"<@!{discord_id}>"
+                invited_players.append(f"{discord_tag} (BGA {bga_name})")
+            else:
+                invited_players.append(f"(BGA {bga_name}) needs to run `!bga setup` on discord (discord tag not found)")
+    author_bga = get_login(message.author.id)["username"]
+    author_str = f"\n:crown: <@!{message.author.id}> (BGA {author_bga})"
+    invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
+    error_players_str = "".join(["\n:x: " + p for p in error_players])
+    players_str = author_str + invited_players_str + error_players_str
+    await message.channel.send(f"**{game}** table created: {table_url}\nInvited{players_str}")
+
+
+async def find_bga_users(players, error_players):
+    """Given a set of discord names, find the BGA players we have saved.
+
+    Returns {BGA_username: "discord_tag"}.
+    If no discord tag was passed in, then that value be empty."""
+    bga_discord_user_map = {}
     for i in range(len(players)):
-        # @ mentions look like <@!12345123412341> in message.content
+        # discord @ mentions look like <@!12345123412341> in message.content
         if players[i][0] == "<":
             player_discord_id = players[i][3:-1]
             # If we have login data cached locally for this player, use it.
             bga_player = get_login(player_discord_id)
             if bga_player:
-                bga_discord_map[players[i]] = bga_player["username"]
+                bga_discord_user_map[bga_player["username"]] = players[i]
             else:
                 # This should be non-blocking as not everyone will have it set up
-                await message.channel.send(f"Discord {players[i]} needs to run !bga setup")
-    try:
-        table_id = await bga_account.create_table(game)
-        valid_bga_players = []
-        invited_players = []
-        if table_id == -1:
-            msg = f"`{game}` is not available on BGA. " \
-                f"Check your spelling (capitalization does not matter)."
-            await message.channel.send(msg)
+                error_players.append(f"{players[i]} needs to run `!bga setup` on discord")
         else:
-            table_url = await bga_account.create_table_url(table_id)
-            for bga_player in players:
-                player_id = await bga_account.get_player_id(bga_player)
-                if player_id == -1:
-                    await message.channel.send(f"BGA Player `{bga_player}` not found.")
-                else:
-                    await bga_account.invite_player(table_id, player_id)
-                    valid_bga_players.append(bga_player)
-            for bga_name in valid_bga_players:
-                discord_id = get_discord_id(bga_name)
-                if discord_id != -1:
-                    discord_tag = f"<@!{discord_id}>"
-                    invited_players.append(f" {discord_tag} ({bga_name})")
-            invited_players_str = ", ".join(invited_players)
-            await message.channel.send(f"<@!{message.author.id}> invited {invited_players_str}: "
-                                       + table_url)
-    except Exception as e:
-        track = traceback.format_exc()
-        print("Encountered error:", e, track)
-        await message.channel.send("Tell Ross to fix his bot.")
+            bga_discord_user_map[players[i]] = ""
+    return bga_discord_user_map
 
 
-async def save_data(discord_id, bga_userid, bga_username, bga_password):
+def save_data(discord_id, bga_userid, bga_username, bga_password):
     """save data."""
     cipher_suite = Fernet(FERNET_KEY)
-    user_json = await get_all_logins()
+    user_json = get_all_logins()
     user_json[str(discord_id)] = {"bga_userid": bga_userid, "username": bga_username, "password": bga_password}
     updated_text = json.dumps(user_json)
     reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
@@ -187,6 +211,7 @@ def get_discord_id(bga_name):
             return discord_id
     return -1
 
+
 async def send_help(message):
     """Send the user a help message"""
     help_text = """BGA is a bot to help you set up board game arena games in discord.
@@ -217,21 +242,28 @@ These commands will work in any channel @BGA is on and also as direct messages t
         On success, output should be:
         
         `Account Pixlane setup successfully!`
+        
+        If you send this message in a public channel, this bot will read and immediately delete it.
+        If you don't want other people/bots to see your credentials flash and then disappear on
+        the channel, send it as a DM to @bga.
     
     **make**
-        For example, Alice (`Pixlane` on BGA) wants to create a game of Race for the Galaxy
-        and wants to invite Bob (`D Fang` on BGA) and Charlie (`_Evanselia_` on BGA). 
-        Alice does not need to invite herself to her own game, so she would type
+        1. For example, Alice (`Pixlane` on BGA) wants to create a game of Race for the Galaxy
+        and wants to invite Bob (`D Fang` on BGA) and Charlie (`_Evanselia_` on Discord), 
+        using their BGA usernames. To do this, she would type
         
-        `!bga make "Race for the Galaxy" "D Fang" _Evanselia_`
-
-        Or use discord names (everyone listed needs to have run !bga setup for this to work):
+        `!bga make "Race for the Galaxy" "D Fang" @Evanselia`
+        
+        Note: Alice does not need to invite herself to her own game, so she does not add her own name.
+        
+        2. Let's say that Alice wants to type their discord names instead. It would look like 
         
         `!bga make "Race for the Galaxy" @Bob @Charlie`
         
-        On success, output should look like:
+        Note: Everyone listed needs to have run `!bga setup` for this to work.
+        On success, output for both options should look like:
     
-        `Table created: https://boardgamearena.com/table?table=88710056`
+        `@Alice invited @Bob (D Fang), @Charlie (_Evanselia_): https://boardgamearena.com/table?table=88710056`
 """
     await message.author.send(help_text)
 
