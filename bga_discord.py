@@ -4,6 +4,7 @@ import discord
 import json
 import os
 import shlex
+import traceback
 
 from keys import TOKEN, FERNET_KEY
 from bga_mediator import BGAAccount, get_game_list
@@ -36,32 +37,37 @@ async def on_message(message):
         if command == "list":
             game_data = await get_game_list() 
             game_list = list(game_data.keys())
+            # Need to truncate because max message length for discord is 2000
             for i in range(len(game_list)//100+1):
                 truncated_games = "\n".join(game_list[i*100: (i+1)*100])
                 await message.channel.send(truncated_games) 
         elif command == "setup":
-            if message.guild:  # Don't delete DMs
+            bga_username = args[2]
+            bga_password = args[3]
+            # Delete account info posted on a public channel
+            if message.guild:
                 await message.delete()
             if len(args) != 4:
                 await message.author.send("Setup requires a BGA username and "
-                    "password. Run `!bga` to see setup examples.")
+                                          "password. Run `!bga` to see setup examples.")
                 return
             account = BGAAccount()
-            logged_in = await account.login(args[2], args[3])
+            logged_in = await account.login(bga_username, bga_password)
+            player_id = await account.get_player_id(bga_username)
             await account.close_connection()
             if logged_in:
-                await save_data(discord_id, args[2], args[3])
-                await message.author.send(f"Account {args[2]} setup successfully.")
+                await save_data(discord_id, player_id, bga_username, bga_password)
+                await message.author.send(f"Account {bga_username} setup successfully.")
             else:
                 await message.author.send("Bad username or password. Try putting quotes around both.")
         elif command == "make":
             login_info = await get_login(discord_id)
             if login_info:
-                login_msg = await message.channel.send("Checking account...")
+                await message.channel.send("Establishing connection to BGA...")
                 account = BGAAccount()
                 logged_in = await account.login(login_info["username"], login_info["password"])
                 if logged_in:
-                    temp_msg = await message.channel.send("Creating table...")
+                    await message.channel.send("Creating table...")
                     players = args[3:]
                     for i in range(len(players)):
                         # @ mentions look like <@!12345123412341> in message.content
@@ -74,13 +80,27 @@ async def on_message(message):
                                 # This should be non-blocking as not everyone will have it set up
                                 await message.channel.send(players[i] + " needs to run !bga setup")
                     try:
-                        table_url = await account.create_table(args[2], args[3:])
-                        await login_msg.delete()
-                        await temp_msg.delete()
-                        await message.channel.send("Created table: " + table_url)
+                        table_id = await account.create_table(args[2])
+                        valid_players = []
+                        if table_id == -1:
+                            await message.channel.send(f"`{args[2]}` is not available on BGA. "
+                                                       f"Check your spelling (capitalization does not matter).")
+                        else:
+                            table_url = await account.create_table_url(table_id)
+                            players = args[3:]
+                            for player in players:
+                                player_id = await account.get_player_id(player)
+                                if player_id == -1:
+                                    await message.channel.send(f"Player `{player}` not found.")
+                                else:
+                                    await account.invite_player(table_id, player_id)
+                                    valid_players.append(player)
+                            await message.channel.send(f"<@!{message.author.id}> invited {', '.join(valid_players)}: "
+                                                       + table_url)
                     except Exception as e:
-                        print("Encountered error:", e)
-                        await message.channel.send("Something went wrong when creating a table.")
+                        track = traceback.format_exc()
+                        print("Encountered error:", e, track)
+                        await message.channel.send("Tell Ross to fix his bot.")
                 else:
                     await message.author.send("Bad username or password. Try putting quotes around both.")
                 await account.close_connection()
@@ -92,11 +112,11 @@ async def on_message(message):
             await send_help(message)
 
 
-async def save_data(discord_id, bga_username, bga_password):
+async def save_data(discord_id, bga_userid, bga_username, bga_password):
     """save data."""
     cipher_suite = Fernet(FERNET_KEY)
     user_json = await get_all_logins()
-    user_json[str(discord_id)] = {"username": bga_username, "password": bga_password}
+    user_json[str(discord_id)] = {"bga_userid": bga_userid, "username": bga_username, "password": bga_password}
     updated_text = json.dumps(user_json)
     reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
     with open("bga_keys", "wb") as f:
@@ -123,6 +143,8 @@ async def get_login(discord_id):
     if discord_id_str in logins:
         return logins[discord_id_str]
     return None
+
+
 
 
 async def send_help(message):
@@ -157,8 +179,9 @@ These commands will work in any channel @BGA is on and also as direct messages t
         `Account Pixlane setup successfully!`
     
     **make**
-        For example, if Alice (`Pixlane` on BGA) wanted to create a game of Race for the Galaxy
-        and invited Bob (`D Fang` on BGA) and Charlie (`_Evanselia_` on BGA), Alice would type
+        For example, Alice (`Pixlane` on BGA) wants to create a game of Race for the Galaxy
+        and wants to invite Bob (`D Fang` on BGA) and Charlie (`_Evanselia_` on BGA). 
+        Alice does not need to invite herself to her own game, so she would type
         
         `!bga make "Race for the Galaxy" "D Fang" _Evanselia_`
 
