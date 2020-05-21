@@ -86,7 +86,7 @@ async def setup_bga_account(message, bga_username, bga_password):
 async def setup_bga_game(message, game, players):
     """Setup a game on BGA based on the message."""
     discord_id = message.author.id
-    login_info = await get_login(discord_id)
+    login_info = get_login(discord_id)
     if login_info:
         await message.channel.send("Establishing connection to BGA...")
         account = BGAAccount()
@@ -100,36 +100,45 @@ async def setup_bga_game(message, game, players):
         await message.author.send("You need to run setup before you can make a game. Type !bga for more info.")
 
 
-async def create_bga_game(message, account, game, players):
+async def create_bga_game(message, bga_account, game, players):
     """Create the actual BGA game."""
+    bga_players = []
     await message.channel.send("Creating table...")
     for i in range(len(players)):
         # @ mentions look like <@!12345123412341> in message.content
         if players[i][0] == "<":
             player_discord_id = players[i][3:-1]
-            bga_player = await get_login(player_discord_id)
+            # If we have login data cached locally for this player, use it.
+            bga_player = get_login(player_discord_id)
             if bga_player:
-                players[i] = bga_player["username"]
+                bga_players.append(bga_player["username"])
             else:
                 # This should be non-blocking as not everyone will have it set up
-                await message.channel.send(players[i] + " needs to run !bga setup")
+                await message.channel.send(f"Discord {players[i]} needs to run !bga setup")
     try:
-        table_id = await account.create_table(game)
-        valid_players = []
+        table_id = await bga_account.create_table(game)
+        valid_bga_players = []
+        invited_players = []
         if table_id == -1:
             msg = f"`{game}` is not available on BGA. " \
                 f"Check your spelling (capitalization does not matter)."
             await message.channel.send(msg)
         else:
-            table_url = await account.create_table_url(table_id)
-            for player in players:
-                player_id = await account.get_player_id(player)
+            table_url = await bga_account.create_table_url(table_id)
+            for bga_player in bga_players:
+                player_id = await bga_account.get_player_id(bga_player)
                 if player_id == -1:
-                    await message.channel.send(f"Player `{player}` not found.")
+                    await message.channel.send(f"BGA Player `{bga_player}` not found.")
                 else:
-                    await account.invite_player(table_id, player_id)
-                    valid_players.append(player)
-            await message.channel.send(f"<@!{message.author.id}> invited {', '.join(valid_players)}: "
+                    await bga_account.invite_player(table_id, player_id)
+                    valid_bga_players.append(bga_player)
+            for bga_name in valid_bga_players:
+                discord_id = get_discord_id(bga_name)
+                if discord_id != -1:
+                    discord_tag = f"<@!{discord_id}>"
+                    invited_players.append(f" {discord_tag} ({bga_name})")
+            invited_players_str = ", ".join(invited_players)
+            await message.channel.send(f"<@!{message.author.id}> invited {invited_players_str}: "
                                        + table_url)
     except Exception as e:
         track = traceback.format_exc()
@@ -148,7 +157,7 @@ async def save_data(discord_id, bga_userid, bga_username, bga_password):
         f.write(reencrypted_text)
 
 
-async def get_all_logins():
+def get_all_logins():
     """Get the login details from the text store."""
     cipher_suite = Fernet(FERNET_KEY)
     if os.path.exists("bga_keys"):
@@ -161,16 +170,22 @@ async def get_all_logins():
     return user_json
 
 
-async def get_login(discord_id):
+def get_login(discord_id):
     """Get login info for a specific user."""
     discord_id_str = str(discord_id)
-    logins = await get_all_logins()
+    logins = get_all_logins()
     if discord_id_str in logins:
         return logins[discord_id_str]
     return None
 
 
-
+def get_discord_id(bga_name):
+    """Search through logins to find the discord id for a bga name."""
+    users = get_all_logins()
+    for discord_id in users:
+        if users[discord_id]["username"] == bga_name:
+            return discord_id
+    return -1
 
 async def send_help(message):
     """Send the user a help message"""
