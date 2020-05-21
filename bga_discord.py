@@ -102,7 +102,7 @@ async def setup_bga_game(message, game, players):
 
 async def create_bga_game(message, bga_account, game, players):
     """Create the actual BGA game."""
-    bga_players = []
+    bga_discord_map = {}
     await message.channel.send("Creating table...")
     for i in range(len(players)):
         # @ mentions look like <@!12345123412341> in message.content
@@ -111,7 +111,7 @@ async def create_bga_game(message, bga_account, game, players):
             # If we have login data cached locally for this player, use it.
             bga_player = get_login(player_discord_id)
             if bga_player:
-                bga_players.append(bga_player["username"])
+                bga_discord_map[players[i]] = bga_player["username"]
             else:
                 # This should be non-blocking as not everyone will have it set up
                 await message.channel.send(f"Discord {players[i]} needs to run !bga setup")
@@ -125,7 +125,7 @@ async def create_bga_game(message, bga_account, game, players):
             await message.channel.send(msg)
         else:
             table_url = await bga_account.create_table_url(table_id)
-            for bga_player in bga_players:
+            for bga_player in players:
                 player_id = await bga_account.get_player_id(bga_player)
                 if player_id == -1:
                     await message.channel.send(f"BGA Player `{bga_player}` not found.")

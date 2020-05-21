@@ -103,10 +103,12 @@ class BGAAccount:
         if resp_json["status"] == "0":
             raise IOError("Problem encountered: " + str(resp))
         table_id = resp_json["data"]["table"]
+        # Give BGA time for table to populate
         # Set table to normal mode
         await self.set_option(table_id, 201, 0)
         # Set table to no time limit
         await self.set_option(table_id, 200, 20)
+        await self.set_presentation(table_id)
         return table_id
 
     async def create_table_url(self, table_id):
@@ -154,6 +156,17 @@ class BGAAccount:
             "table": table_id,
             "id": option,
             "value": value,
+            "dojo.preventCache": str(int(time.time()))
+        }
+        url += "?" + urllib.parse.urlencode(params)
+        await self.fetch(url)
+
+    async def set_presentation(self, table_id):
+        """Set the description of the table to "Made by a BGA bot."""
+        url = self.base_url + "/table/table/setpresentation.html"
+        params = {
+            "table": table_id,
+            "value": "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥",
             "dojo.preventCache": str(int(time.time()))
         }
         url += "?" + urllib.parse.urlencode(params)
