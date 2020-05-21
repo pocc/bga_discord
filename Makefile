@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Run the main script
-.PHONY: run
+.PHONY: run clean
 
-run:
-	@python3 bga_discord.py
+clean:
+	@printf "" > errs
+run: clean
+	@python3 bga_discord.py >errs 2>&1

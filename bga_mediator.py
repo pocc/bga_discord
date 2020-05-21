@@ -76,11 +76,12 @@ class BGAAccount:
 
     async def create_table(self, game_name, players):
         """Create a table and return its url."""
+        lower_game_name = game_name.lower()
         if not isinstance(players, list):
             raise ValueError("Players needs to be a list, not a string")
         await self.quit_table()
-        games = await self.get_games()
-        if game_name.lower() not in [g.lower() for g in games]:
+        games = await get_game_list()
+        if lower_game_name not in [g.lower() for g in games]:
             return game_name + " is not a known BGA game"
         game_id = games[lower_game_name]
         url = "https://boardgamearena.com/table/table/createnew.html"

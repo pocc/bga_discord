@@ -28,7 +28,7 @@ async def on_message(message):
         print("Received message", message.content)
         args = shlex.split(message.content)
         if len(args) == 1:
-            message.author.send("No command entered!")
+            await message.author.send("No command entered!")
             await send_help(message)
             return
         command = args[1]
@@ -51,7 +51,7 @@ async def on_message(message):
             await account.close_connection()
             if logged_in:
                 await save_data(discord_id, args[2], args[3])
-                await message.author.send("Saved details successfully.")
+                await message.author.send(f"Account {args[2]} setup successfully.")
             else:
                 await message.author.send("Bad username or password. Try putting quotes around both.")
         elif command == "make":
@@ -72,11 +72,15 @@ async def on_message(message):
                                 players[i] = bga_player["username"]
                             else:
                                 # This should be non-blocking as not everyone will have it set up
-                                message.channel.send(players[i] + " needs to run !bga setup")
-                    table_url = await account.create_table(args[2], args[3:])
-                    await login_msg.delete()
-                    await temp_msg.delete()
-                    await message.channel.send("Created table: " + table_url)
+                                await message.channel.send(players[i] + " needs to run !bga setup")
+                    try:
+                        table_url = await account.create_table(args[2], args[3:])
+                        await login_msg.delete()
+                        await temp_msg.delete()
+                        await message.channel.send("Created table: " + table_url)
+                    except Exception as e:
+                        print("Encountered error:", e)
+                        await message.channel.send("Something went wrong when creating a table.")
                 else:
                     await message.author.send("Bad username or password. Try putting quotes around both.")
                 await account.close_connection()
@@ -144,23 +148,23 @@ These commands will work in any channel @BGA is on and also as direct messages t
 `========`
 
     **setup** 
-        Example setup of an account:
+        Example setup of account for Alice (`Pixlane` on BGA):
         
-        `!bga setup "Pocc" "MySuperSecretPassword!"`
+        `!bga setup "Pixlane" "MySuperSecretPassword!"`
         
         On success, output should be:
         
-        `Account Pocc setup successfully!`
+        `Account Pixlane setup successfully!`
     
     **make**
-        For example, if you wanted to create a game of Race for the Galaxy and 
-        invite Ross (Pocc on BGA) and Seth (montesat on BGA), you would use
+        For example, if Alice (`Pixlane` on BGA) wanted to create a game of Race for the Galaxy
+        and invited Bob (`D Fang` on BGA) and Charlie (`_Evanselia_` on BGA), Alice would type
         
-        `!bga make "Race for the Galaxy" "Pocc" "montesat"`
+        `!bga make "Race for the Galaxy" "D Fang" _Evanselia_`
+
+        Or use discord names (everyone listed needs to have run !bga setup for this to work):
         
-        Or use discord names (everyone listed needs to have run setup for this to work):
-        
-        `!bga make "Race for the Galaxy" @Ross @Seth`
+        `!bga make "Race for the Galaxy" @Bob @Charlie`
         
         On success, output should look like:
     
