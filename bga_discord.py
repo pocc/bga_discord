@@ -264,8 +264,6 @@ These commands will work in any channel @BGA is on and also as direct messages t
         `Account Pixlane setup successfully!`
         
         If you send this message in a public channel, this bot will read and immediately delete it.
-        If you don't want other people/bots to see your credentials flash and then disappear on
-        the channel, send it as a DM to @bga.
     
     **make**
         1. For example, Alice (`Pixlane` on BGA) wants to create a game of Race for the Galaxy
