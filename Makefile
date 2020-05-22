@@ -5,4 +5,4 @@
 clean:
 	@printf "" > errs
 run: clean
-	@python3 bga_discord.py >errs 2>&1
+	@python3 -u bga_discord.py 2>&1 | tee errs &

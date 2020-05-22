@@ -67,10 +67,17 @@ async def bga_list_games(message):
     """List the games that BGA currently offers."""
     game_data = await get_game_list()
     game_list = list(game_data.keys())
-    # Need to truncate because max message length for discord is 2000
-    for i in range(len(game_list)//100+1):
-        truncated_games = "\n".join(game_list[i*100: (i+1)*100])
-        await message.channel.send(truncated_games)
+    # Need to truncate at 1000 chars because max message length for discord is 2000
+    tr_games = [g[:22] for g in game_list]
+    retmsg = ""
+    for i in range(len(tr_games)//5): 
+        retmsg += "\n`{:<24}{:<24}{:<24}{:<24}{:<24}`".format(*tr_games[5*i:5*(i+1)]) 
+        print("Next line", retmsg, len(retmsg))
+        if len(retmsg) > 1000:
+            await message.channel.send(retmsg)
+            retmsg = ""
+    if len(retmsg) > 0:
+        await message.channel.send(retmsg)
 
 
 async def setup_bga_account(message, bga_username, bga_password):
