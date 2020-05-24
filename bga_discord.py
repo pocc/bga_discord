@@ -17,8 +17,8 @@ client = discord.Client()
 async def on_ready():
     """Let the user who started the bot know that the connection succeeded."""
     print(f'{client.user.name} has connected to Discord!')
-    # Create words under bot that say "Listening to !help"
-    listening_to_help = discord.Activity(type=discord.ActivityType.listening, name="to !bga")
+    # Create words under bot that say "Listening to !bga"
+    listening_to_help = discord.Activity(type=discord.ActivityType.listening, name="!bga")
     await client.change_presence(activity=listening_to_help)
 
 
@@ -47,10 +47,16 @@ async def on_message(message):
             bga_passwd = args[3]
             await setup_bga_account(message, bga_user, bga_passwd)
         elif command == "link":
-            if len(args) != 3:
+            # expected syntax is `!bga link $discord_tag $bga_username`
+            if len(args) != 4:
                 await message.author.send("link got the wrong number of arguments. Run `!bga` to see link examples.")
-            bga_user = args[2]
-            await setup_bga_account(message, bga_user, "LINKPASSWORD")
+            discord_tag = args[2]
+            if discord_tag[0] != "<":
+                await message.author.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
+                                          "Make sure that the discord tag has an @ and is purple.")
+                return
+            bga_user = args[3]
+            await link_accounts(message, discord_tag, bga_user)
         elif command == "make":
             if len(args) < 3:
                 await message.author.send("make requires a BGA game. Run `!bga` to see make examples.")
@@ -95,10 +101,9 @@ async def setup_bga_account(message, bga_username, bga_password):
         await message.author.send("Bad username or password. Try putting quotes around both.")
 
 
-async def link_accounts(message, bga_username):
+async def link_accounts(message, discord_id, bga_username):
     """Link a BGA account to a discord account"""
     # Delete account info posted on a public channel
-    discord_id = message.author.id
     bogus_player_id = -1
     bogus_password = ""
     save_data(discord_id, bogus_player_id, bga_username, bogus_password)
@@ -261,13 +266,21 @@ These commands will work in any channel @BGA is on and also as direct messages t
     **list**
         List all of the 100+ games on Board Game Arena
 
-    **setup <username> <password>**
+    **setup bga_username bga_password**
         setup is used to save your BGA account details.
         This bot will delete this message after you send it.
+        If either username or password has spaces, use quotes.
+
+    **link @discord_tag bga_username**
+        link is used to connect someone's discord account to their 
+        BGA account if you already know both. They will not have 
+        to run setup, but they will not be able to host games.
     
-    **make <game> <user1> <user2>...**
+    **make game user1 user2...**
         make is used to create games on BGA using the account details from setup.
         The game is required, but the number of other users can be >= 0.
+        Each user can be a discord_tag if it has an @ in front of it; otherwise, it
+        will be treated as a board game arena account name.
 
 `Examples`
 `========`
@@ -282,6 +295,15 @@ These commands will work in any channel @BGA is on and also as direct messages t
         `Account Pixlane setup successfully!`
         
         If you send this message in a public channel, this bot will read and immediately delete it.
+    
+     **Link** 
+        Example setup of account by Alice for Bob (`D Fang` on BGA, @Bob on discord):
+        
+        `!bga link @Bob "D Fang"`
+        
+        On success, output should be:
+        
+        `Discord @Bob successfully linked to BGA D Fang.`
     
     **make**
         1. For example, Alice (`Pixlane` on BGA) wants to create a game of Race for the Galaxy
