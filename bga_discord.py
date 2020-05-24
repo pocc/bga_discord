@@ -55,8 +55,9 @@ async def on_message(message):
                 await message.author.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
                                           "Make sure that the discord tag has an @ and is purple.")
                 return
+            discord_id = discord_tag[3:-1]  # Remove <@!...> part of discord tag
             bga_user = args[3]
-            await link_accounts(message, discord_tag, bga_user)
+            await link_accounts(message, discord_id, bga_user)
         elif command == "make":
             if len(args) < 3:
                 await message.author.send("make requires a BGA game. Run `!bga` to see make examples.")
@@ -108,36 +109,48 @@ async def setup_bga_account(message, bga_username, bga_password):
         await message.author.send("Bad username or password. Try putting quotes around both.")
 
 
+async def get_active_session(message):
+    """Get an active session with the author's login info."""
+    discord_id = message.author.id
+    login_info = get_login(discord_id)
+    if not login_info:
+        await message.author.send("You need to run setup before you can make a game. Type !bga for more info.")
+        return
+    # bogus_password ("") used for linking accounts, but is not full account setup
+    if login_info["password"] == "":
+        await message.author.send("You have to sign in to host a game. Run `!bga` to get info on setup.")
+        return
+    connection_msg = await message.channel.send("Establishing connection to BGA...")
+    account = BGAAccount()
+    logged_in = await account.login(login_info["username"], login_info["password"])
+    await connection_msg.delete()
+    if logged_in:
+        return account
+    else:
+        await message.author.send("Bad username or password. Try putting quotes around both.")
+
+
 async def link_accounts(message, discord_id, bga_username):
     """Link a BGA account to a discord account"""
-    # Delete account info posted on a public channel
-    bogus_player_id = -1
+    # An empty password signifies a linked but not setup account
     bogus_password = ""
-    save_data(discord_id, bogus_player_id, bga_username, bogus_password)
-    await message.author.send(f"Discord <@!{str(discord_id)} successfully linked to BGA {bga_username}.")
+    account = await get_active_session(message)
+    bga_id = await account.get_player_id(bga_username)
+    if bga_id == -1:
+        await message.author.send(f"Unable to find {bga_username}. Are you sure it's spelled correctly?")
+        return
+    save_data(discord_id, bga_id, bga_username, bogus_password)
+    await message.author.send(f"Discord <@!{str(discord_id)}> successfully linked to BGA {bga_username}.")
+    await account.close_connection()
 
 
 async def setup_bga_game(message, game, players):
     """Setup a game on BGA based on the message."""
-    discord_id = message.author.id
-    login_info = get_login(discord_id)
-    if login_info:
-        # bogus_password ("") used for linking accounts, but is not full account setup
-        if login_info["password"] == "":
-            await message.author.send("You have to sign in to host a game. Run `!bga` to get info on setup.")
-        connection_msg = await message.channel.send("Establishing connection to BGA...")
-        account = BGAAccount()
-        logged_in = await account.login(login_info["username"], login_info["password"])
-        if logged_in:
-            table_msg = await message.channel.send("Creating table...")
-            await create_bga_game(message, account, game, players)
-            await table_msg.delete()
-        else:
-            await message.author.send("Bad username or password. Try putting quotes around both.")
-        await connection_msg.delete()
-        await account.close_connection()
-    else:
-        await message.author.send("You need to run setup before you can make a game. Type !bga for more info.")
+    account = await get_active_session(message)
+    table_msg = await message.channel.send("Creating table...")
+    await create_bga_game(message, account, game, players)
+    await table_msg.delete()
+    await account.close_connection()
 
 
 async def create_bga_game(message, bga_account, game, players):
