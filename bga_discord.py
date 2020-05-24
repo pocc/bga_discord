@@ -1,11 +1,9 @@
 """Bot to create games on discord."""
 from cryptography.fernet import Fernet
-import datetime
 import discord
 import json
 import os
 import shlex
-import time
 import traceback
 
 from keys import TOKEN, FERNET_KEY
@@ -19,6 +17,9 @@ client = discord.Client()
 async def on_ready():
     """Let the user who started the bot know that the connection succeeded."""
     print(f'{client.user.name} has connected to Discord!')
+    # Create words under bot that say "Listening to !help"
+    listening_to_help = discord.Activity(type=discord.ActivityType.listening, name="to !bga")
+    await client.change_presence(activity=listening_to_help)
 
 
 @client.event
@@ -45,6 +46,11 @@ async def on_message(message):
             bga_user = args[2]
             bga_passwd = args[3]
             await setup_bga_account(message, bga_user, bga_passwd)
+        elif command == "link":
+            if len(args) != 3:
+                await message.author.send("link got the wrong number of arguments. Run `!bga` to see link examples.")
+            bga_user = args[2]
+            await setup_bga_account(message, bga_user, "LINKPASSWORD")
         elif command == "make":
             if len(args) < 3:
                 await message.author.send("make requires a BGA game. Run `!bga` to see make examples.")
@@ -56,7 +62,6 @@ async def on_message(message):
             except Exception as e:
                 print("Encountered error:", e, "\n", traceback.format_exc())
                 await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
-
         else:
             await message.author.send(f"You entered invalid command `{command}`. "
                                       f"Valid commands are list, setup, and make.")
@@ -90,11 +95,24 @@ async def setup_bga_account(message, bga_username, bga_password):
         await message.author.send("Bad username or password. Try putting quotes around both.")
 
 
+async def link_accounts(message, bga_username):
+    """Link a BGA account to a discord account"""
+    # Delete account info posted on a public channel
+    discord_id = message.author.id
+    bogus_player_id = -1
+    bogus_password = ""
+    save_data(discord_id, bogus_player_id, bga_username, bogus_password)
+    await message.author.send(f"Discord <@!{str(discord_id)} successfully linked to BGA {bga_username}.")
+
+
 async def setup_bga_game(message, game, players):
     """Setup a game on BGA based on the message."""
     discord_id = message.author.id
     login_info = get_login(discord_id)
     if login_info:
+        # bogus_password ("") used for linking accounts, but is not full account setup
+        if login_info["password"] == "":
+            await message.author.send("You have to sign in to host a game. Run `!bga` to get info on setup.")
         connection_msg = await message.channel.send("Establishing connection to BGA...")
         account = BGAAccount()
         logged_in = await account.login(login_info["username"], login_info["password"])
