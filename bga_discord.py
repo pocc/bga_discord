@@ -30,9 +30,12 @@ async def on_message(message):
 
     if message.content.startswith('!bga'):
         print("Received message", message.content)
+        if message.content.count("\'") % 2 == 1 or message.content.count("\"") % 2 == 1:
+            await message.author.send(f"You entered \n`{message.content}`\nwhich has an odd number of \' or \" characters. Please fix this and retry.")
+            return
         args = shlex.split(message.content)
         if len(args) == 1:
-            await message.author.send("No command entered!")
+            await message.author.send("No command entered! Showing !bga help.")
             await send_help(message)
             return
         command = args[1]
@@ -71,7 +74,7 @@ async def on_message(message):
                 await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
         else:
             await message.author.send(f"You entered invalid command `{command}`. "
-                                      f"Valid commands are list, setup, and make.")
+                                      f"Valid commands are list, link, setup, and make.")
             await send_help(message)
 
 
@@ -263,6 +266,7 @@ def get_discord_id(bga_name):
 
 async def send_table_embed(message, game, table_url, author, players, err_players):
     """Create a discord embed to send the message about table creation."""
+    print(f"Sending embed with message {message}, game {game}, url {table_url}, author {author}, players {players}, err_players {err_players}")
     retmsg = discord.Embed(
         title=game,
         description=table_url,
@@ -270,18 +274,19 @@ async def send_table_embed(message, game, table_url, author, players, err_player
     )
     retmsg.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
     retmsg.add_field(name="Creator", value=author, inline=False)
-    retmsg.add_field(name="Invited", value=players, inline=False)
-    retmsg.add_field(name="Failed to Invite", value=err_players, inline=False)
+    if players:
+        retmsg.add_field(name="Invited", value=players, inline=False)
+    if err_players:
+        retmsg.add_field(name="Failed to Invite", value=err_players, inline=False)
     await message.channel.send(embed=retmsg)
 
 
 async def send_help(message):
     """Send the user a help message"""
-    help_text = """BGA is a bot to help you set up board game arena games in discord.
+    help_text1 = """BGA is a bot to help you set up board game arena games in discord.
 These commands will work in any channel @BGA is on and also as direct messages to @BGA.
 
-`Available commands`
-`==================`
+__**Available commands**__
 
     **list**
         List all of the 100+ games on Board Game Arena
@@ -301,9 +306,9 @@ These commands will work in any channel @BGA is on and also as direct messages t
         The game is required, but the number of other users can be >= 0.
         Each user can be a discord_tag if it has an @ in front of it; otherwise, it
         will be treated as a board game arena account name.
-
-`Examples`
-`========`
+"""
+    help_text2 = """
+__**Examples**__
 
     **setup** 
         Example setup of account for Alice (`Pixlane` on BGA):
@@ -343,7 +348,10 @@ These commands will work in any channel @BGA is on and also as direct messages t
     
         `@Alice invited @Bob (D Fang), @Charlie (_Evanselia_): https://boardgamearena.com/table?table=88710056`
 """
-    await message.author.send(help_text)
+    help_text1 = help_text1.replace(4*" ", "\t")
+    help_text2 = help_text2.replace(4*" ", "\t")
+    await message.author.send(help_text1)
+    await message.author.send(help_text2)
 
 
 client.run(TOKEN)
