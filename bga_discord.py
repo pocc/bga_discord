@@ -31,11 +31,11 @@ async def on_message(message):
     if message.content.startswith('!bga'):
         print("Received message", message.content)
         if message.content.count("\'") % 2 == 1 or message.content.count("\"") % 2 == 1:
-            await message.author.send(f"You entered \n`{message.content}`\nwhich has an odd number of \' or \" characters. Please fix this and retry.")
+            await message.channel.send(f"You entered \n`{message.content}`\nwhich has an odd number of \' or \" characters. Please fix this and retry.")
             return
         args = shlex.split(message.content)
         if len(args) == 1:
-            await message.author.send("No command entered! Showing !bga help.")
+            await message.channel.send("No command entered! Showing !bga help.")
             await send_help(message)
             return
         command = args[1]
@@ -43,7 +43,7 @@ async def on_message(message):
             await bga_list_games(message)
         elif command == "setup":
             if len(args) != 4:
-                await message.author.send("Setup requires a BGA username and "
+                await message.channel.send("Setup requires a BGA username and "
                                           "password. Run `!bga` to see setup examples.")
                 return
             bga_user = args[2]
@@ -52,10 +52,10 @@ async def on_message(message):
         elif command == "link":
             # expected syntax is `!bga link $discord_tag $bga_username`
             if len(args) != 4:
-                await message.author.send("link got the wrong number of arguments. Run `!bga` to see link examples.")
+                await message.channel.send("link got the wrong number of arguments. Run `!bga` to see link examples.")
             discord_tag = args[2]
             if discord_tag[0] != "<":
-                await message.author.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
+                await message.channel.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
                                           "Make sure that the discord tag has an @ and is purple.")
                 return
             discord_id = discord_tag[3:-1]  # Remove <@!...> part of discord tag
@@ -63,7 +63,7 @@ async def on_message(message):
             await link_accounts(message, discord_id, bga_user)
         elif command == "make":
             if len(args) < 3:
-                await message.author.send("make requires a BGA game. Run `!bga` to see make examples.")
+                await message.channel.send("make requires a BGA game. Run `!bga` to see make examples.")
                 return
             game = args[2]
             players = args[3:]
@@ -73,7 +73,7 @@ async def on_message(message):
                 print("Encountered error:", e, "\n", traceback.format_exc())
                 await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
         else:
-            await message.author.send(f"You entered invalid command `{command}`. "
+            await message.channel.send(f"You entered invalid command `{command}`. "
                                       f"Valid commands are list, link, setup, and make.")
             await send_help(message)
 
@@ -107,7 +107,7 @@ async def setup_bga_account(message, bga_username, bga_password):
     await account.close_connection()
     if logged_in:
         save_data(discord_id, player_id, bga_username, bga_password)
-        await message.author.send(f"Account {bga_username} setup successfully.")
+        await message.channel.send(f"Account {bga_username} setup successfully.")
     else:
         await message.author.send("Bad username or password. Try putting quotes around both.")
 
@@ -117,11 +117,11 @@ async def get_active_session(message):
     discord_id = message.author.id
     login_info = get_login(discord_id)
     if not login_info:
-        await message.author.send("You need to run setup before you can make a game. Type !bga for more info.")
+        await message.channel.send("You need to run setup before you can make a game. Type !bga for more info.")
         return
     # bogus_password ("") used for linking accounts, but is not full account setup
     if login_info["password"] == "":
-        await message.author.send("You have to sign in to host a game. Run `!bga` to get info on setup.")
+        await message.channel.send("You have to sign in to host a game. Run `!bga` to get info on setup.")
         return
     connection_msg = await message.channel.send("Establishing connection to BGA...")
     account = BGAAccount()
@@ -130,7 +130,7 @@ async def get_active_session(message):
     if logged_in:
         return account
     else:
-        await message.author.send("Bad username or password. Try putting quotes around both.")
+        await message.channel.send("Bad username or password. Try putting quotes around both.")
 
 
 async def link_accounts(message, discord_id, bga_username):
@@ -140,10 +140,10 @@ async def link_accounts(message, discord_id, bga_username):
     account = await get_active_session(message)
     bga_id = await account.get_player_id(bga_username)
     if bga_id == -1:
-        await message.author.send(f"Unable to find {bga_username}. Are you sure it's spelled correctly?")
+        await message.channel.send(f"Unable to find {bga_username}. Are you sure it's spelled correctly?")
         return
     save_data(discord_id, bga_id, bga_username, bogus_password)
-    await message.author.send(f"Discord <@!{str(discord_id)}> successfully linked to BGA {bga_username}.")
+    await message.channel.send(f"Discord <@!{str(discord_id)}> successfully linked to BGA {bga_username}.")
     await account.close_connection()
 
 
@@ -193,7 +193,7 @@ async def create_bga_game(message, bga_account, game, players):
                 discord_tag = f"<@!{discord_id}>"
                 invited_players.append(f"{discord_tag} (BGA {bga_name})")
             else:
-                invited_players.append(f"(BGA {bga_name}) needs to run `!bga setup` on discord (discord tag not found)")
+                invited_players.append(f"(BGA {bga_name}) needs to run `!bga setup <bga user> <bga passwd>` on discord (discord tag not found)")
     author_str = f"\n:crown: <@!{message.author.id}> (BGA {author_bga})"
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
     error_players_str = "".join(["\n:x: " + p for p in error_players])
@@ -216,7 +216,7 @@ async def find_bga_users(players, error_players):
                 bga_discord_user_map[bga_player["username"]] = players[i]
             else:
                 # This should be non-blocking as not everyone will have it set up
-                error_players.append(f"{players[i]} needs to run `!bga setup` on discord")
+                error_players.append(f"{players[i]} needs to run `!bga setup <bga user> <bga passwd>` on discord")
         else:
             bga_discord_user_map[players[i]] = ""
     return bga_discord_user_map
@@ -343,15 +343,15 @@ __**Examples**__
         
         `!bga make "Race for the Galaxy" @Bob @Charlie`
         
-        Note: Everyone listed needs to have run `!bga setup` for this to work.
+        Note: Everyone listed needs to have run `!bga setup <bga user> <bga pass>` for this to work.
         On success, output for both options should look like:
     
         `@Alice invited @Bob (D Fang), @Charlie (_Evanselia_): https://boardgamearena.com/table?table=88710056`
 """
     help_text1 = help_text1.replace(4*" ", "\t")
     help_text2 = help_text2.replace(4*" ", "\t")
-    await message.author.send(help_text1)
-    await message.author.send(help_text2)
+    await message.channel.send(help_text1)
+    await message.channel.send(help_text2)
 
 
 client.run(TOKEN)
