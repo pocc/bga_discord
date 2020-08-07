@@ -71,9 +71,40 @@ async def on_message(message):
             for arg in args:
                 if ":" in arg:
                     # Options with : are not players
+                    bga_opts = {
+                        "mode": 201,
+                        "speed": 200,
+                    }
+                    bga_vals = {
+                        "normal": 0,
+                        "training": 1,
+                        "fast": 0,
+                        "normal": 1,
+                        "slow": 2,
+                        "24/day": 10,
+                        "12/day": 11,
+                        "8/day": 12,
+                        "4/day": 13,
+                        "3/day": 14,
+                        "2/day": 15,
+                        "1/day": 17,
+                        "1/2days": 19,
+                        "nolimit": 20,
+                    }
+                    k, v = arg.split(":")[:2]
+                    # Allow raw inputting of options like 200:12
+                    if k.isdigit() and v.isdigit():
+                       options.append([int(k), int(v)]) 
+                    elif k not in bga_opts or v not in bga_vals:
+                        msg = f"This option {k}:{v} is not valid. Showing `!bga options`."
+                        await message.channel.send(msg)
+                        await send_options(message)
+                        return
+                    else:  # Convert words to numbers
+                        key = bga_opts[k]
+                        value = bga_vals[v]
+                        options.append([key, value]) 
                     players.remove(arg)
-                    kv = arg.split(":")
-                    options.append(kv) 
             try:
                 await setup_bga_game(message, game, players, options)
             except Exception as e:
@@ -176,8 +207,8 @@ async def create_bga_game(message, bga_account, game, players, options):
     valid_bga_players = []
     invited_players = []
     if table_id == -1:
-        msg = f"`{game}` is not available on BGA or options are not valid. " \
-            f"Check your spelling (capitalization and special characters do not matter)."
+        msg = f"`{game}` is not available on BGA. " \
+        f"Check your spelling (capitalization and special characters do not matter)."
         await message.channel.send(msg)
         return
     table_url = await bga_account.create_table_url(table_id)
@@ -375,12 +406,12 @@ async def send_options(message):
     """Send the user a list of supported bga options."""
     options_text = """Options can be specified only with make and with a colon like `speed:slow`.
 
-**Available options**
+__**Available options**__
 
-mode : The type of game
+**mode**: *The type of game*
     normal
     training
-speed : How fast to play. /day is moves per day. nolimit means no time limit.
+**speed**: *How fast to play. /day is moves per day. nolimit means no time limit.*
     fast
     normal
     slow
@@ -393,9 +424,11 @@ speed : How fast to play. /day is moves per day. nolimit means no time limit.
     1/day
     1/2days
     nolimit
+
+_You can also specify options/values like 200:12 if you know what they are by looking at the HTML._
 """
     options_text = options_text.replace(4*" ", "\t")
-    await message.author.send(options_text)
+    await message.channel.send(options_text)
 
 
 client.run(TOKEN)

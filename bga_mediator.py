@@ -25,26 +25,6 @@ async def get_game_list():
 class BGAAccount:
     """Account user/pass and methods to login/create games with it."""
     # Select numbers for changing options in a game
-    bga_opts = {
-        "mode": 201,
-        "speed": 200,
-    }
-    bga_vals = {
-        "normal": 0,
-        "training" 1,
-        "fast": 0,
-        "normal": 1,
-        "slow": 2,
-        "24/day": 10,
-        "12/day": 11,
-        "8/day": 12,
-        "4/day": 13,
-        "3/day": 14,
-        "2/day": 15,
-        "1/day": 17,
-        "1/2days": 19,
-        "nolimit": 20,
-    }
     def __init__(self):
         self.session = aiohttp.ClientSession()
         self.base_url = "https://boardgamearena.com"
@@ -98,7 +78,7 @@ class BGAAccount:
             quit_url += "?" + urllib.parse.urlencode(params)
             await self.fetch(quit_url)
 
-    async def create_table(self, game_name, options=[[201, 0]]):
+    async def create_table(self, game_name, options):
         """Create a table and return its url. 201,0 is to set to normal mode."""
         lower_game_name = re.sub(r"[^a-z0-9]", "", game_name.lower())
         await self.quit_table()
@@ -125,13 +105,12 @@ class BGAAccount:
             raise IOError("Problem encountered: " + str(resp))
         table_id = resp_json["data"]["table"]
         # Give BGA time for table to populate
+        # If mode isn't specified, choose normal
+        if 201 not in [opt[0] for opt in options]:
+            options.append([201, 0])
         for option in options:
             # Replace option words with the numbers bga will interpret them as.
-            k, v = option.split(":")
-            if k not self.bga_opts or v not in self.bga_vals:
-                return -1
-            key = self.bga_opts[k]
-            value = self.bga_vals[v]
+            key, value = option[0], option[1]
             await self.set_option(table_id, key, value)
         await self.set_presentation(table_id)
         return table_id
