@@ -62,16 +62,25 @@ async def on_message(message):
             bga_user = args[3]
             await link_accounts(message, discord_id, bga_user)
         elif command == "make":
+            options = []
             if len(args) < 3:
                 await message.channel.send("make requires a BGA game. Run `!bga` to see make examples.")
                 return
             game = args[2]
             players = args[3:]
+            for arg in args:
+                if ":" in arg:
+                    # Options with : are not players
+                    players.remove(arg)
+                    kv = arg.split(":")
+                    options.append(kv) 
             try:
-                await setup_bga_game(message, game, players)
+                await setup_bga_game(message, game, players, options)
             except Exception as e:
                 print("Encountered error:", e, "\n", traceback.format_exc())
                 await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
+        elif command == "options":
+            await send_options(message)
         else:
             await message.channel.send(f"You entered invalid command `{command}`. "
                                       f"Valid commands are list, link, setup, and make.")
@@ -147,27 +156,27 @@ async def link_accounts(message, discord_id, bga_username):
     await account.close_connection()
 
 
-async def setup_bga_game(message, game, players):
+async def setup_bga_game(message, game, players, options):
     """Setup a game on BGA based on the message."""
     account = await get_active_session(message)
     table_msg = await message.channel.send("Creating table...")
-    await create_bga_game(message, account, game, players)
+    await create_bga_game(message, account, game, players, options)
     await table_msg.delete()
     await account.close_connection()
 
 
-async def create_bga_game(message, bga_account, game, players):
+async def create_bga_game(message, bga_account, game, players, options):
     """Create the actual BGA game."""
     # If the player is a discord tag, this will be
     # {"bga player": "discord tag"}, otherwise {"bga player":""}
     error_players = []
     bga_discord_user_map = await find_bga_users(players, error_players)
     bga_players = list(bga_discord_user_map.keys())
-    table_id = await bga_account.create_table(game)
+    table_id = await bga_account.create_table(game, options)
     valid_bga_players = []
     invited_players = []
     if table_id == -1:
-        msg = f"`{game}` is not available on BGA. " \
+        msg = f"`{game}` is not available on BGA or options are not valid. " \
             f"Check your spelling (capitalization and special characters do not matter)."
         await message.channel.send(msg)
         return
@@ -188,12 +197,12 @@ async def create_bga_game(message, bga_account, game, players):
         if len(discord_tag) > 0:  # If the player was passed in as a discord tag
             invited_players.append(f"{discord_tag} (BGA {bga_name})")
         else:  # If the player was passed in as a BGA player name
-            discord_id = get_discord_id(bga_name)
+            discord_id = get_discord_id(bga_name, message)
             if discord_id != -1:
                 discord_tag = f"<@!{discord_id}>"
                 invited_players.append(f"{discord_tag} (BGA {bga_name})")
             else:
-                invited_players.append(f"(BGA {bga_name}) needs to run `!bga setup <bga user> <bga passwd>` on discord (discord tag not found)")
+                invited_players.append(f"(BGA {bga_name}) needs to run `!bga link <discord user> <bga user>` on discord (discord tag not found)")
     author_str = f"\n:crown: <@!{message.author.id}> (BGA {author_bga})"
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
     error_players_str = "".join(["\n:x: " + p for p in error_players])
@@ -216,7 +225,7 @@ async def find_bga_users(players, error_players):
                 bga_discord_user_map[bga_player["username"]] = players[i]
             else:
                 # This should be non-blocking as not everyone will have it set up
-                error_players.append(f"{players[i]} needs to run `!bga setup <bga user> <bga passwd>` on discord")
+                error_players.append(f"{players[i]} needs to run `!bga link <discord user> <bga user>` on discord")
         else:
             bga_discord_user_map[players[i]] = ""
     return bga_discord_user_map
@@ -255,12 +264,16 @@ def get_login(discord_id):
     return None
 
 
-def get_discord_id(bga_name):
+def get_discord_id(bga_name, message):
     """Search through logins to find the discord id for a bga name."""
     users = get_all_logins()
     for discord_id in users:
         if users[discord_id]["username"] == bga_name:
             return discord_id
+    # Search for discord id if BGA name == discord nickname
+    for member in message.guild.members:
+        if member.display_name.startswith(bga_name):
+            return user.id
     return -1
 
 
@@ -306,6 +319,10 @@ __**Available commands**__
         The game is required, but the number of other users can be >= 0.
         Each user can be a discord_tag if it has an @ in front of it; otherwise, it
         will be treated as a board game arena account name.
+
+    **options**
+        Print the available options that can be specified with make.
+        Board game arena options must be specified like `speed:slow`.
 """
     help_text2 = """
 __**Examples**__
@@ -350,8 +367,35 @@ __**Examples**__
 """
     help_text1 = help_text1.replace(4*" ", "\t")
     help_text2 = help_text2.replace(4*" ", "\t")
-    await message.channel.send(help_text1)
-    await message.channel.send(help_text2)
+    await message.author.send(help_text1)
+    await message.author.send(help_text2)
+
+
+async def send_options(message):
+    """Send the user a list of supported bga options."""
+    options_text = """Options can be specified only with make and with a colon like `speed:slow`.
+
+**Available options**
+
+mode : The type of game
+    normal
+    training
+speed : How fast to play. /day is moves per day. nolimit means no time limit.
+    fast
+    normal
+    slow
+    24/day
+    12/day
+    8/day
+    4/day
+    3/day
+    2/day
+    1/day
+    1/2days
+    nolimit
+"""
+    options_text = options_text.replace(4*" ", "\t")
+    await message.author.send(options_text)
 
 
 client.run(TOKEN)
