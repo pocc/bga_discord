@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Run the main script
-.PHONY: run clean
+.PHONY: run kill
 
-clean:
-	@printf "" > errs
-run: clean
-	@python3 -u bga_discord.py 2>&1 | tee errs &
+kill:
+	@kill `cat pid` 2>/dev/null || true
+run: kill
+	@python3 -u bga_discord.py 2>&1 & echo $$! > pid | tee -a errs 

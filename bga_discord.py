@@ -190,6 +190,8 @@ async def link_accounts(message, discord_id, bga_username):
 async def setup_bga_game(message, game, players, options):
     """Setup a game on BGA based on the message."""
     account = await get_active_session(message)
+    if account == None: # If err, fail now
+        return
     table_msg = await message.channel.send("Creating table...")
     await create_bga_game(message, account, game, players, options)
     await table_msg.delete()
@@ -304,7 +306,7 @@ def get_discord_id(bga_name, message):
     # Search for discord id if BGA name == discord nickname
     for member in message.guild.members:
         if member.display_name.startswith(bga_name):
-            return user.id
+            return member.id
     return -1
 
 
