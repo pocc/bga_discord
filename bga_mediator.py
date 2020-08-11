@@ -78,7 +78,7 @@ class BGAAccount:
             quit_url += "?" + urllib.parse.urlencode(params)
             await self.fetch(quit_url)
 
-    async def create_table(self, game_name, options):
+    async def create_table(self, game_name):
         """Create a table and return its url. 201,0 is to set to normal mode."""
         lower_game_name = re.sub(r"[^a-z0-9]", "", game_name.lower())
         await self.quit_table()
@@ -104,14 +104,15 @@ class BGAAccount:
         if resp_json["status"] == "0":
             raise IOError("Problem encountered: " + str(resp))
         table_id = resp_json["data"]["table"]
-        # Give BGA time for table to populate
-        # If mode isn't specified, choose normal
-        url_data = await self.parse_options(options)
-        #return -2  # error code for option error
+        return table_id
+        
+    async def set_table_options(self, options, table_id):
+        url_data = await self.parse_options(options, table_id)
+        if isinstance(url_data, str): # In this case it's an error
+            return url_data
         print("Got url data ", url_data)
         for url_datum in url_data:
-            await self.set_option(table_id, url_datum["path"], url_datum["params"])
-        return table_id
+            await self.set_option(table_id, url_datum["path"], url_datum["params"]) 
 
     async def set_option(self, table_id, path, params):
         """Change the game options for the specified."""
@@ -123,7 +124,7 @@ class BGAAccount:
         url += "?" + urllib.parse.urlencode(params)
         await self.fetch(url)
 
-    async def parse_options(self, options):
+    async def parse_options(self, options, table_id):
         """Create url data that can be parsed as urls"""
         # Set defaults if they're not present
         defaults = {
@@ -143,7 +144,10 @@ class BGAAccount:
             if option == "mode":
                 option_data["path"] = "/table/table/changeoption.html"
                 mode_name = updated_options[option]
-                mode_id = {"normal": 0, "training": 1}[mode_name]
+                mode_types = {"normal": 0, "training": 1}
+                if mode_name not in list(mode_types.keys()):
+                    return f"Valid modes are training and normal. You entered {mode_name}."
+                mode_id = mode_types[mode_name]
                 option_data["params"] = {
                   "id": 201,
                   "value": mode_id
@@ -151,42 +155,55 @@ class BGAAccount:
             elif option == "speed":
                 option_data["path"] = "/table/table/changeoption.html"
                 speed_name = updated_options[option]
-                speed_id = {
-                       "fast": 0,
-                       "normal": 1,
-                       "slow": 2,
-                       "24/day": 10,
-                       "12/day": 11,
-                       "8/day": 12,
-                       "4/day": 13,
-                       "3/day": 14,
-                       "2/day": 15,
-                       "1/day": 17,
-                       "1/2days": 19,
-                       "nolimit": 20,
-                   }[speed_name]
+                speed_values = {
+                   "fast": 0,
+                   "normal": 1,
+                   "slow": 2,
+                   "24/day": 10,
+                   "12/day": 11,
+                   "8/day": 12,
+                   "4/day": 13,
+                   "3/day": 14,
+                   "2/day": 15,
+                   "1/day": 17,
+                   "1/2days": 19,
+                   "nolimit": 20,
+                }
+                if speed_name not in list(speed_values.keys()):
+                    return f"{speed_name} is not a valid speed. Check !bga options."
+                speed_id = speed_values[speed_name]
                 option_data["params"] = {
                   "id": 200,
                   "value": speed_id
                 }
             elif option == "minrep":
                 option_data["path"] = "/table/table/changeTableAccessReputation.html"  
-                karma_number = {"0": 0, "50": 1, "65": 2, "75": 3, "85": 4}
-                option_data["params"] = {"karma": karma_number[value]}
+                karma_numbers = {"0": 0, "50": 1, "65": 2, "75": 3, "85": 4}
+                if value not in list(karma_numbers.keys()):
+                     return f"Invalid minimum karma {value}. Valid values are 0, 50, 65, 75, 85."
+                option_data["params"] = {"karma": karma_numbers[value]}
             elif option == "presentation":
+                # No error checking is necessary as every string is valid.
                 option_data["path"] = "/table/table/setpresentation.html"  
                 option_data["params"] = {"value": updated_options[option]}
             elif option == "levels":
-                level_enum = {
-                    "beginner": 0,
-                    "apprentice": 1,
-                    "average": 2,
-                    "good": 3,
-                    "strong": 4,
-                    "expert": 5,
-                    "master": 6,
-                }
-                [min_level, max_level] = updated_options[option].lower().split('-')
+                valid_levels = [
+                    "beginner",
+                    "apprentice",
+                    "average",
+                    "good",
+                    "strong",
+                    "expert",
+                    "master"
+                ]
+                if '-' not in value:
+                    return f"levels requires a dash between levels like `good-strong`." 
+                [min_level, max_level] = value.lower().split('-')
+                if min_level not in valid_levels:
+                    return f"Min level {min_level} is not a valid level ({','.join(valid_levels)})"
+                if max_level not in valid_levels:
+                    return f"Max level {max_level} is not a valid level ({','.join(valid_levels)})"
+                level_enum = {valid_levels[i]:i for i in range(len(valid_levels))}
                 min_level_num = level_enum[min_level]
                 max_level_num = level_enum[max_level]
                 level_keys = {}
@@ -197,20 +214,28 @@ class BGAAccount:
                         level_keys["level" + str(i)] = "false"
                 option_data["path"] = "/table/table/changeTableAccessLevel.html"
                 option_data["params"] = level_keys
-            elif option == "players": # Change minimum and maximum number of players
+            elif option == "players": 
+                # Change minimum and maximum number of players
                 option_data["path"] = "/table/table/changeWantedPlayers.html"
                 [minp, maxp] = updated_options[option].split('-')
                 option_data["params"] = {"minp": minp, "maxp": maxp}
             elif option == "restrictgroup":
                 option_data["path"] = "/table/table/restrictToGroup.html"
-                group_id = await self.get_group_id(updated_options[option])
-                option_data["params"] = {"group": group_id}
+                group_options = await self.get_group_options(table_id)
+                group_id = -1
+                for group_o in group_options:
+                    if group_o[1].startswith(value):
+                        group_id = group_o[0]
+                if group_id != -1:
+                    option_data["params"] = {"group": group_id}
+                else:
+                    groups_str = "[`" + "`,`".join([g[1] for g in group_options if g[1] != '-']) + "`]"
+                    return f"Unable to find group {value}. You are a member of groups {group_str}."
             elif option == "lang":
                 option_data["path"] = "/table/table/restrictToLanguage.html"
                 option_data["params"] = {"lang": updated_options[option]}
             else:
-                print(f"Option {option} not found.")
-                return KeyError  # Incorrect key
+                return f"Option {option} not a valid option."
         
             url_data.append(option_data)
         return url_data
@@ -233,6 +258,14 @@ class BGAAccount:
         """Verify that the user is logged in by accessing a url they should have access to."""
         community_text = await self.fetch(self.base_url + "/community")
         return "You must be logged in to see this page." not in community_text
+
+    async def get_group_options(self, table_id):
+        """The friend group id is unique to every user. Search the table HTML for it."""
+        table_url = self.base_url + "/table?table=" + str(table_id)
+        html_text = await self.fetch(table_url)
+        restrict_group_select = re.search(r'<select id="restrictToGroup">([\s\S]*?)<\/select>', html_text)[0]
+        options = re.findall(r'"(\d*)">([^<]*)', restrict_group_select)
+        return options
 
     async def get_player_id(self, player):
         """Given the name of a player, get their player id."""

@@ -174,16 +174,12 @@ async def create_bga_game(message, bga_account, game, players, options):
     error_players = []
     bga_discord_user_map = await find_bga_users(players, error_players)
     bga_players = list(bga_discord_user_map.keys())
-    table_id = await bga_account.create_table(game, options)
+    table_id = await bga_account.create_table(game)
     valid_bga_players = []
     invited_players = []
     if table_id == -1:
         msg = f"`{game}` is not available on BGA. " \
         f"Check your spelling (capitalization and special characters do not matter)."
-        await message.channel.send(msg)
-        return
-    if table_id == -2:
-        msg = f"One of your options is invalid. Check !bga options."
         await message.channel.send(msg)
         return
     table_url = await bga_account.create_table_url(table_id)
@@ -213,6 +209,9 @@ async def create_bga_game(message, bga_account, game, players, options):
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
     error_players_str = "".join(["\n:x: " + p for p in error_players])
     await send_table_embed(message, game, table_url, author_str, invited_players_str, error_players_str)
+    err_msg = await bga_account.set_table_options(options, table_id)
+    if err_msg:
+        await message.channel.send(err_msg)
 
 
 async def find_bga_users(players, error_players):
@@ -436,6 +435,7 @@ The default is marked with a *
 **restrictgroup**: A group name in double quotes to restrict the game to. You should be able to find the group here if it exists: boardgamearena.com/community. You can only use this option if you are a member of that community.
     Default is no group restriction
     Ex: restrictgroup:"BGA Discord Bosspiles" will limit a game to this group
+    Ex: "My friends" is a valid group for everyone.
 **lang**: ISO639-1 language code like en, es, fr, de. To find yours: en.wikipedia.org/wiki/List_of_ISO_639-1_codes 
     Default language is none
 
