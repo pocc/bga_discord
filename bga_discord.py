@@ -70,40 +70,9 @@ async def on_message(message):
             players = args[3:]
             for arg in args:
                 if ":" in arg:
+                    key, value = arg.split(":")[:2]
+                    options.append([key, value]) 
                     # Options with : are not players
-                    bga_opts = {
-                        "mode": 201,
-                        "speed": 200,
-                    }
-                    bga_vals = {
-                        "normal": 0,
-                        "training": 1,
-                        "fast": 0,
-                        "normal": 1,
-                        "slow": 2,
-                        "24/day": 10,
-                        "12/day": 11,
-                        "8/day": 12,
-                        "4/day": 13,
-                        "3/day": 14,
-                        "2/day": 15,
-                        "1/day": 17,
-                        "1/2days": 19,
-                        "nolimit": 20,
-                    }
-                    k, v = arg.split(":")[:2]
-                    # Allow raw inputting of options like 200:12
-                    if k.isdigit() and v.isdigit():
-                       options.append([int(k), int(v)]) 
-                    elif k not in bga_opts or v not in bga_vals:
-                        msg = f"This option {k}:{v} is not valid. Showing `!bga options`."
-                        await message.channel.send(msg)
-                        await send_options(message)
-                        return
-                    else:  # Convert words to numbers
-                        key = bga_opts[k]
-                        value = bga_vals[v]
-                        options.append([key, value]) 
                     players.remove(arg)
             try:
                 await setup_bga_game(message, game, players, options)
@@ -211,6 +180,10 @@ async def create_bga_game(message, bga_account, game, players, options):
     if table_id == -1:
         msg = f"`{game}` is not available on BGA. " \
         f"Check your spelling (capitalization and special characters do not matter)."
+        await message.channel.send(msg)
+        return
+    if table_id == -2:
+        msg = f"One of your options is invalid. Check !bga options."
         await message.channel.send(msg)
         return
     table_url = await bga_account.create_table_url(table_id)
@@ -343,6 +316,8 @@ __**Available commands**__
         If either username or password has spaces, use quotes.
 
     **link @discord_tag bga_username**
+        NOTE: If you run setup, linking accounts is done automatically.
+
         link is used to connect someone's discord account to their 
         BGA account if you already know both. They will not have 
         to run setup, but they will not be able to host games.
@@ -410,12 +385,14 @@ async def send_options(message):
 
 __**Available options**__
 
+The default is marked with a *
+
 **mode**: *The type of game*
     normal
     training
 **speed**: *How fast to play. /day is moves per day. nolimit means no time limit.*
     fast
-    normal
+    medium *
     slow
     24/day
     12/day
@@ -426,6 +403,41 @@ __**Available options**__
     1/day
     1/2days
     nolimit
+**minrep**: *The minimum reputation required. Reputation is how often you quit midgame.*
+    0
+    50
+    65
+    75 *
+    85
+**presentation**: *The game's description shown beneath it in the game list.*
+    <any string with double quotes>
+**players**: *The minimum and maximum number of players a game can have. The min/max numbers can be the same.*
+    <min players>-<max players> like `2-5`
+**minlevel**: The minimum or maximum level of player to play against. You must be at least your min level to choose it.
+    `beginner *  (0)`
+    `apprentice  (1-99)`
+    `average     (100-199)`
+    `good        (200-299)`
+    `strong      (300-499)`
+    `export      (500-600)`
+    `master      (600+)`
+     
+    ex: `minlevel:apprentice`
+**maxlevel**: The maximum level of player to play against. You must be at least your max level to choose it.
+    `beginner    (0)`
+    `apprentice  (1-99)`
+    `average     (100-199)`
+    `good        (200-299)`
+    `strong      (300-499)`
+    `export      (500-600)`
+    `master *    (600+)`
+    
+    ex: `maxlevel:expert`
+**restrictgroup**: A group name in double quotes to restrict the game to. You should be able to find the group here if it exists: boardgamearena.com/community. You can only use this option if you are a member of that community.
+    Default is no group restriction
+    Ex: restrictgroup:"BGA Discord Bosspiles" will limit a game to this group
+**lang**: ISO639-1 language code like en, es, fr, de. To find yours: en.wikipedia.org/wiki/List_of_ISO_639-1_codes 
+    Default language is none
 
 _You can also specify options/values like 200:12 if you know what they are by looking at the HTML._
 """
