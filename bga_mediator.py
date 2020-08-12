@@ -79,7 +79,8 @@ class BGAAccount:
             await self.fetch(quit_url)
 
     async def create_table(self, game_name):
-        """Create a table and return its url. 201,0 is to set to normal mode."""
+        """Create a table and return its url. 201,0 is to set to normal mode.
+        Returns (table id (int), error string (str))"""
         lower_game_name = re.sub(r"[^a-z0-9]", "", game_name.lower())
         await self.quit_table()
         games = await get_game_list()
@@ -87,8 +88,18 @@ class BGAAccount:
         for game in games:
             lower_name = re.sub(r"[^a-z0-9]", "", game.lower())
             lower_games[lower_name] = games[game]
-        if lower_game_name not in lower_games.keys():
-            return -1
+        # If name is unique like "race" for "raceforthegalaxy", use that
+        games_found = []
+        for game_i in list(lower_games.keys()):
+            if game_i.startswith(lower_game_name):
+                games_found.append(game_i)
+        if len(games_found) == 0:
+            err = f"`{game_name}` is not available on BGA. Check your spelling " \
+                f"(capitalization and special characters do not matter)."
+            return e1, err 
+        elif len(games_found) > 1:
+            err = f"`{game_name}` matches [{','.join(games_found)}]. Use more letters to match."
+            return -1, err
         game_id = lower_games[lower_game_name]
         url = self.base_url + "/table/table/createnew.html"
         params = {
@@ -100,11 +111,19 @@ class BGAAccount:
         }
         url += "?" + urllib.parse.urlencode(params)
         resp = await self.fetch(url)
-        resp_json = json.loads(resp)
+        try:
+            resp_json = json.loads(resp)
+        except json.decoder.JSONDecodeError:
+            print(resp_json)
+            return -1, "Unable to parse JSON from Board Game Arena."
         if resp_json["status"] == "0":
-            raise IOError("Problem encountered: " + str(resp))
+            err = resp_json["error"]
+            if err.startswitch("You have a game in progress"):
+                matches = re.match(r'(^[\w !]*)[^\/]*([^\"]*)', err)
+                err = matches[1] + "Quit this game first: " + self.base_url + matches[2]
+            return -1, err 
         table_id = resp_json["data"]["table"]
-        return table_id
+        return table_id, ""
         
     async def set_table_options(self, options, table_id):
         url_data = await self.parse_options(options, table_id)
@@ -296,6 +315,16 @@ class BGAAccount:
         if resp_json["status"] == "0":
             raise IOError("Problem encountered: " + str(resp))
 
+    async def add_friend(self, friend_name):
+        friend_id = await self.get_player_id(friend_name)
+        if friend_id == -1:
+            return f"Player {friend_name} not found. Make sure they exist and check spelling."
+        params = {
+            "id": friend_id,
+            "dojo.preventCache": str(int(time.time()))
+        }
+        path = "?" + urllib.parse.urlencode(params)
+        await self.fetch(self.base_url + "/community/community/addToFriend.html" + path)
 
     async def close_connection(self):
         """Close the connection. aiohttp complains otherwise."""

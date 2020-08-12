@@ -79,6 +79,8 @@ async def on_message(message):
             except Exception as e:
                 print("Encountered error:", e, "\n", traceback.format_exc())
                 await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
+        elif command == "friend":
+            await add_friends(args[2:], message)
         elif command == "options":
             await send_options(message)
         else:
@@ -86,6 +88,17 @@ async def on_message(message):
                                       f"Valid commands are list, link, setup, and make.")
             await send_help(message)
 
+async def add_friends(friends, message):
+    account = await get_active_session(message)
+    for friend in friends:
+        err_msg = await account.add_friend(friend)
+        if err_msg:
+            await message.channel.send(err_msg)
+            await account.close_connection()
+            return
+        else:
+            await message.channel.send(f"{friend} added successfully as a friend.")
+    await account.close_connection()
 
 async def bga_list_games(message):
     """List the games that BGA currently offers."""
@@ -174,13 +187,15 @@ async def create_bga_game(message, bga_account, game, players, options):
     error_players = []
     bga_discord_user_map = await find_bga_users(players, error_players)
     bga_players = list(bga_discord_user_map.keys())
-    table_id = await bga_account.create_table(game)
+    table_id, create_err = await bga_account.create_table(game)
+    if len(create_err) > 0:
+        await message.channel.send(create_err)
+        return
     valid_bga_players = []
     invited_players = []
-    if table_id == -1:
-        msg = f"`{game}` is not available on BGA. " \
-        f"Check your spelling (capitalization and special characters do not matter)."
-        await message.channel.send(msg)
+    err_msg = await bga_account.set_table_options(options, table_id)
+    if err_msg:
+        await message.channel.send(err_msg)
         return
     table_url = await bga_account.create_table_url(table_id)
     author_bga = get_login(message.author.id)["username"]
@@ -209,9 +224,6 @@ async def create_bga_game(message, bga_account, game, players, options):
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
     error_players_str = "".join(["\n:x: " + p for p in error_players])
     await send_table_embed(message, game, table_url, author_str, invited_players_str, error_players_str)
-    err_msg = await bga_account.set_table_options(options, table_id)
-    if err_msg:
-        await message.channel.send(err_msg)
 
 
 async def find_bga_users(players, error_players):
