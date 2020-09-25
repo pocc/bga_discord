@@ -3,11 +3,13 @@ from cryptography.fernet import Fernet
 import discord
 import json
 import os
+import re
 import shlex
 import traceback
 
 from keys import TOKEN, FERNET_KEY
 from bga_mediator import BGAAccount, get_game_list
+from tfm_mediator import TFMGame, TFMPlayer
 
 
 client = discord.Client()
@@ -25,68 +27,226 @@ async def on_ready():
 @client.event
 async def on_message(message):
     """Listen to messages so that this bot can do something."""
+    # Don't respond to this bot's own messages!
     if message.author == client.user:
         return
-
-    if message.content.startswith('!bga'):
+    if message.content.startswith('!bga') or message.content.startswith('!tfm'):
+        # Replace the quotes on a German keyboard with regular ones.
+        message.content.replace('„', '"').replace('“', '"')
+        if message.content.count("\"") % 2 == 1:
+            await message.author.send(f"You entered \n`{message.content}`\nwhich has an odd number of \" characters. Please fix this and retry.")
+            return
         print("Received message", message.content)
-        if message.content.count("\'") % 2 == 1 or message.content.count("\"") % 2 == 1:
-            await message.channel.send(f"You entered \n`{message.content}`\nwhich has an odd number of \' or \" characters. Please fix this and retry.")
+        try:
+            if message.content.startswith('!bga'):
+                await init_bga_game(message)
+            if message.content.startswith('!tfm'):
+                await init_tfm_game(message)
+        except Exception as e:
+            print("Encountered error:", e, "\n", traceback.format_exc())
+            await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
+
+
+async def init_bga_game(message):
+    args = shlex.split(message.content)
+    if len(args) == 1:
+        await message.channel.send("Sending BGA help your way.")
+        await send_help(message)
+        return
+    command = args[1]
+    if command == "list":
+        await bga_list_games(message)
+    elif command == "setup":
+        if len(args) != 4:
+            await message.channel.send("Setup requires a BGA username and "
+                                      "password. Run `!bga` to see setup examples.")
             return
-        args = shlex.split(message.content)
-        if len(args) == 1:
-            await message.channel.send("No command entered! Showing !bga help.")
-            await send_help(message)
+        bga_user = args[2]
+        bga_passwd = args[3]
+        await setup_bga_account(message, bga_user, bga_passwd)
+    elif command == "link":
+        # expected syntax is `!bga link $discord_tag $bga_username`
+        if len(args) != 4:
+            await message.channel.send("link got the wrong number of arguments. Run `!bga` to see link examples.")
+        discord_tag = args[2]
+        if discord_tag[0] != "<":
+            await message.channel.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
+                                      "Make sure that the discord tag has an @ and is purple.")
             return
-        command = args[1]
-        if command == "list":
-            await bga_list_games(message)
-        elif command == "setup":
-            if len(args) != 4:
-                await message.channel.send("Setup requires a BGA username and "
-                                          "password. Run `!bga` to see setup examples.")
-                return
-            bga_user = args[2]
-            bga_passwd = args[3]
-            await setup_bga_account(message, bga_user, bga_passwd)
-        elif command == "link":
-            # expected syntax is `!bga link $discord_tag $bga_username`
-            if len(args) != 4:
-                await message.channel.send("link got the wrong number of arguments. Run `!bga` to see link examples.")
-            discord_tag = args[2]
-            if discord_tag[0] != "<":
-                await message.channel.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
-                                          "Make sure that the discord tag has an @ and is purple.")
-                return
-            discord_id = discord_tag[3:-1]  # Remove <@!...> part of discord tag
-            bga_user = args[3]
-            await link_accounts(message, discord_id, bga_user)
-        elif command == "make":
-            options = []
-            if len(args) < 3:
-                await message.channel.send("make requires a BGA game. Run `!bga` to see make examples.")
-                return
-            game = args[2]
-            players = args[3:]
-            for arg in args:
-                if ":" in arg:
-                    key, value = arg.split(":")[:2]
-                    options.append([key, value]) 
-                    # Options with : are not players
-                    players.remove(arg)
-            try:
-                await setup_bga_game(message, game, players, options)
-            except Exception as e:
-                print("Encountered error:", e, "\n", traceback.format_exc())
-                await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
-        elif command == "friend":
-            await add_friends(args[2:], message)
-        elif command == "options":
-            await send_options(message)
-        else:
-            await message.channel.send(f"You entered invalid command `{command}`. "
-                                      f"Valid commands are list, link, setup, and make.")
-            await send_help(message)
+        discord_id = discord_tag[3:-1]  # Remove <@!...> part of discord tag
+        bga_user = args[3]
+        await link_accounts(message, discord_id, bga_user)
+    elif command == "make":
+        options = []
+        if len(args) < 3:
+            await message.channel.send("make requires a BGA game. Run `!bga` to see make examples.")
+            return
+        game = args[2]
+        players = args[3:]
+        for arg in args:
+            if ":" in arg:
+                key, value = arg.split(":")[:2]
+                options.append([key, value]) 
+                # Options with : are not players
+                players.remove(arg)
+        await setup_bga_game(message, game, players, options)
+    elif command == "friend":
+        await add_friends(args[2:], message)
+    elif command == "options":
+        await send_options(message)
+    else:
+        await message.channel.send(f"You entered invalid command `{command}`. "
+                                  f"Valid commands are list, link, setup, and make.")
+        await send_help(message)
+
+async def init_tfm_game(message):
+    """Format of message is !tfm +cpv player1;bgy;urd.
+    See the help message for more info."""
+    args = shlex.split(message.content)
+    global_opts = ""
+    players = []
+    if len(args) == 1:
+        await message.author.send("No command entered! Showing the help for !tfm.")
+        await send_tfm_help(message)
+        return
+    if args[1][0] == "+":
+        global_opts = args[1][1:]
+        args.remove(args[1])
+    for arg in args[1:]:
+        print(f"Parsing arg `{arg}`")
+        all_args = arg.split(';')
+        if len(all_args) == 2:
+            name, colors = all_args
+            opts = ""
+        elif len(all_args) == 3:
+            name, colors, opts = all_args 
+        else: 
+            await message.author.send("Too many semicolons in player string (expected 2-3)!")
+            return
+        if not re.match("[rygbpk]+", colors):
+            await message.author.send(f"Color in {colors} for player {name} is not valid.")
+            return
+        if not re.match("[cpvchetourdbswalim23456]*", opts):
+            await message.author.send(f"Opt in {opts} for player {name} is not valid.")
+            return
+        new_player = TFMPlayer(name, colors, opts)
+        players.append(new_player)
+    game = TFMGame()
+    options = await game.generate_shared_params(global_opts, players)
+    data = await game.create_table(options)
+    player_lines = []
+    i = 1
+    for player in data:
+        color_circle = f":{player['color']}_circle:"
+        player_line = f"**{i} {color_circle} {player['name']}**\t [Link to Game]({player['player_link']})"
+        guild_members = [m.display_name.lower() for m in message.guild.members] 
+        player_lines.append(player_line)
+        i += 1
+    author_line = ""  # It's not as important to have a game creator - the bot is the game creator
+    player_list_str = '\n'.join(player_lines)
+    options_str = ""
+    option_names = list(options.keys())
+    option_names.sort()
+    for key in option_names:
+        if key != "players":
+            options_str += f"{key}   =   {options[key]}\n"
+    await send_table_embed(message, "Terraforming Mars", "In the 2400s, mankind begins to terraform the planet Mars", author_line, player_list_str, "Options", options_str)
+    await game.close_connection()
+
+
+async def send_tfm_help(message):
+    help_msg = """__**Terraforming Mars Table Creation**__
+
+Use the following options to create a Terraforming Mars game.
+The options below correspond to options in the game. Global options,
+specified with a starting `+`, override player options. If all players have
+shared preferences for an option, then it will be added.
+
+Format your command like
+`!tfm +<global opts> <p1>;<p1 colors>;<p1 opts> <p2>;<p2 colors>;<p2 opts> ...`
+
+As an example:
+`!tfm +a3brewds Pocc;pbkg;covept Seth;r;`
+
+Here, Seth wants to play as red (r) and doesn't care about game options.
+Pocc wants to play as color purple, blue, black, green in that order. And then expansions `cvpte` with o for promos.
+
+The mapping between letters and options is below.
+For an explanation of options, see `https://github.com/bafolts/terraforming-mars/wiki/Variants`
+
+__=> **Options**__
+
+__=> **Colors**__
+Colors preferences are (**r**)ed, (**y**)ellow, (**g**)reen, (**b**)lue, (**p**)urple, blac(**k**)
+Use the first letter of each color to represent it or **k** for black
+
+__**Board**__
+Board options start with `b`: `bt` for tharsis, `bh` for hellas, `be` for elysium, `br` for random
+
+__**Expansions**__
+`e` **corporateEra** : Extra corporations to use. `https://boardgamegeek.com/boardgame/241497/terraforming-mars-bgg-user-created-corporation-pac`
+`p` **prelude** : Starting bonuses to speed up the game. `https://boardgamegeek.com/boardgameexpansion/247030/terraforming-mars-prelude`
+`v` **venusNext**/includeVenusMA : 4th TR meter with a set of extra venus cards. `https://boardgamegeek.com/boardgameexpansion/231965/terraforming-mars-venus-next`
+`c` **colonies** : Ganymede-like extra colonies to settle. `https://boardgamegeek.com/boardgameexpansion/255681/terraforming-mars-colonies`
+`t` **turmoil** : Makes the game much longer. `https://boardgamegeek.com/boardgameexpansion/273473/terraforming-mars-turmoil`
+
+__**Promos**__
+`o` **promoCardsOption** : 7 extra sets of cards (see link above)
+"""
+    help_msg2 = """
+
+__**Options**__
+`u` **undoOption**
+> Enable players to undo their first move of each turn (requires refresh).
+`r` **randomMA** (Random Milestones and Awards)
+> Picks 5 milestones and awards at random (6 if playing with Venus Next expansion).
+`d` **draftVariant**
+> During the Research phase, players select cards one at a time and pass the remaining cards clockwise (during 
+> even generations) or anti-clockwise (during odd generations), before deciding how many cards to purchase.
+`s` **showOtherPlayersVP**
+> Show other players VPs, including from milestones, awards, and cards. This is dynamically updated.
+`w` **solarPhaseOption** (World Government Terraforming)
+> At the end of each generation, the active player raises a global parameter of his/her choice, without gaining any TR or bonuses from this action.
+`a` **startingCorporations** (followed by the number)
+> Set the number of starting corporations dealt to each player.
+`l` **soloTR**
+> Win by achieving a Terraform Rating of 63 by game end, instead of the default goal of completing all global parameters.
+`i` **initialDraft**
+> Adds a draft mechanic for starting cards. Choose 1 project cards among 5 and pass the rest to the player on your left. 
+> Then 1 project cards among 4 and pass the rest to the player on your left. Same process with another 5 project cards 
+> but pass to the player on your right. If prelude option is activated, choose 1 prelude card among 4 and pass the rest 
+> to the player on your left. Then 1 prelude card among 3 and pass the rest to the player on your left. Repeat.*
+> Random Milestones and Awards
+`m` **shuffleMapOption**
+> Shuffles all available tiles to generate a dynamic board. Noctis City and volcanic areas will always remain as land areas.
+"""
+    unimplemented = """
+
+__**Unimplemented**__ (bug Ross if this bugs you)
+
+Community Corporations
+> Adds some fan-made corporations to the game.
+
+Beginner Corporations
+> Start with 42 MC and immediately receive 10 cards in hand, without having to pay for any cards during the initial Research phase.
+> Shuffle player order and randomly pick the first player.
+
+TR Boost
+> Give player(s) up to 10 additional starting TR as a game handicap.
+
+Fast Mode
+> Cannot end turn after one action (either play 2 actions or pass for the current generation).
+
+Remove Negative Global Events
+> Exclude all global events that decrease player resources, production or global parameters.
+
+Set Predefined Game
+> Replay a previous game by selecting the game seed.
+"""
+    await message.channel.send(help_msg)
+    await message.channel.send(help_msg2)
+    await message.channel.send(unimplemented)
+
 
 async def add_friends(friends, message):
     account = await get_active_session(message)
@@ -139,7 +299,7 @@ async def get_active_session(message):
     discord_id = message.author.id
     login_info = get_login(discord_id)
     if not login_info:
-        await message.channel.send("You need to run setup before you can make a game. Type !bga for more info.")
+        await message.channel.send("You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info.")
         return
     # bogus_password ("") used for linking accounts, but is not full account setup
     if login_info["password"] == "":
@@ -160,6 +320,8 @@ async def link_accounts(message, discord_id, bga_username):
     # An empty password signifies a linked but not setup account
     bogus_password = ""
     account = await get_active_session(message)
+    if not account:
+        return
     bga_id = await account.get_player_id(bga_username)
     if bga_id == -1:
         await message.channel.send(f"Unable to find {bga_username}. Are you sure it's spelled correctly?")
@@ -223,7 +385,7 @@ async def create_bga_game(message, bga_account, game, players, options):
     author_str = f"\n:crown: <@!{message.author.id}> (BGA {author_bga})"
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
     error_players_str = "".join(["\n:x: " + p for p in error_players])
-    await send_table_embed(message, game, table_url, author_str, invited_players_str, error_players_str)
+    await send_table_embed(message, game, table_url, author_str, invited_players_str, "Failed to Invite", error_players_str)
 
 
 async def find_bga_users(players, error_players):
@@ -294,20 +456,21 @@ def get_discord_id(bga_name, message):
     return -1
 
 
-async def send_table_embed(message, game, table_url, author, players, err_players):
+async def send_table_embed(message, game, desc, author, players, second_title, second_content):
     """Create a discord embed to send the message about table creation."""
-    print(f"Sending embed with message {message}, game {game}, url {table_url}, author {author}, players {players}, err_players {err_players}")
+    print(f"Sending embed with message {message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
     retmsg = discord.Embed(
         title=game,
-        description=table_url,
+        description=desc,
         color=3447003,
     )
     retmsg.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
-    retmsg.add_field(name="Creator", value=author, inline=False)
+    if len(author) > 0:
+        retmsg.add_field(name="Creator", value=author, inline=False)
     if players:
         retmsg.add_field(name="Invited", value=players, inline=False)
-    if err_players:
-        retmsg.add_field(name="Failed to Invite", value=err_players, inline=False)
+    if second_content:
+        retmsg.add_field(name=second_title, value=second_content, inline=False)
     await message.channel.send(embed=retmsg)
 
 
