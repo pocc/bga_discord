@@ -1,4 +1,5 @@
 """Create a connection to Board Game Arena and interact with it."""
+import logger
 import json
 import re
 import time
@@ -6,6 +7,7 @@ import urllib.parse
 
 import aiohttp
 
+logging.basicConfig(filename='errs', level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
 
 async def get_game_list():
     """Get the list of games and numbers BGA assigns to each game."""
@@ -31,17 +33,17 @@ class BGAAccount:
 
     async def fetch(self, url):
         """Generic get."""
-        print("\nGET:", url)
+        logging.debug("\nGET:", url)
         async with self.session.get(url) as response:
             resp_text = await response.text()
             is_json = resp_text[0] in ["{", "["]
             if is_json:
-                print("RET JSON: " + resp_text)
+                logging.debug("RET JSON: " + resp_text)
             return resp_text
 
     async def post(self, url, params):
         """Generic post."""
-        print("LOGIN: " + url + "\nEMAIL: " + params["email"])
+        logging.debug("LOGIN: " + url + "\nEMAIL: " + params["email"])
         await self.session.post(url, data=params)
 
     async def login(self, username, password):
@@ -67,7 +69,7 @@ class BGAAccount:
         matches = re.search(r"[Pp]laying[^<]*<a href=\"\/table\?table=(\d+)", resp)
         if matches is not None:
             table_id = matches[1]
-            print("Quitting table", table_id)
+            logging.debug("Quitting table", table_id)
             quit_url = self.base_url + "/table/table/quitgame.html"
             params = {
                 "table": table_id,
@@ -97,7 +99,7 @@ class BGAAccount:
         if len(games_found) == 0:
             err = f"`{lower_game_name}` is not available on BGA. Check your spelling " \
                 f"(capitalization and special characters do not matter)."
-            return e1, err 
+            return e1, err
         elif len(games_found) > 1:
             err = f"`{lower_game_name}` matches [{','.join(games_found)}]. Use more letters to match."
             return -1, err
@@ -116,24 +118,24 @@ class BGAAccount:
         try:
             resp_json = json.loads(resp)
         except json.decoder.JSONDecodeError:
-            print(resp_json)
+            logging.error("Unable to decode response json", resp_json)
             return -1, "Unable to parse JSON from Board Game Arena."
         if resp_json["status"] == "0":
             err = resp_json["error"]
             if err.startswith("You have a game in progress"):
                 matches = re.match(r'(^[\w !]*)[^\/]*([^\"]*)', err)
                 err = matches[1] + "Quit this game first (1 realtime game at a time): " + self.base_url + matches[2]
-            return -1, err 
+            return -1, err
         table_id = resp_json["data"]["table"]
         return table_id, ""
-        
+
     async def set_table_options(self, options, table_id):
         url_data = await self.parse_options(options, table_id)
         if isinstance(url_data, str): # In this case it's an error
             return url_data
-        print("Got url data ", url_data)
+        logging.debug("Got url data ", url_data)
         for url_datum in url_data:
-            await self.set_option(table_id, url_datum["path"], url_datum["params"]) 
+            await self.set_option(table_id, url_datum["path"], url_datum["params"])
 
     async def set_option(self, table_id, path, params):
         """Change the game options for the specified."""
@@ -161,7 +163,7 @@ class BGAAccount:
         for option in updated_options:
             value = updated_options[option]
             option_data = {}
-            print(f"Reading option `{option}` with key `{value}`")
+            logging.debug(f"Reading option `{option}` with key `{value}`")
             if option == "mode":
                 option_data["path"] = "/table/table/changeoption.html"
                 mode_name = updated_options[option]
@@ -198,14 +200,14 @@ class BGAAccount:
                   "value": speed_id
                 }
             elif option == "minrep":
-                option_data["path"] = "/table/table/changeTableAccessReputation.html"  
+                option_data["path"] = "/table/table/changeTableAccessReputation.html"
                 karma_numbers = {"0": 0, "50": 1, "65": 2, "75": 3, "85": 4}
                 if value not in list(karma_numbers.keys()):
                      return f"Invalid minimum karma {value}. Valid values are 0, 50, 65, 75, 85."
                 option_data["params"] = {"karma": karma_numbers[value]}
             elif option == "presentation":
                 # No error checking is necessary as every string is valid.
-                option_data["path"] = "/table/table/setpresentation.html"  
+                option_data["path"] = "/table/table/setpresentation.html"
                 option_data["params"] = {"value": updated_options[option]}
             elif option == "levels":
                 valid_levels = [
@@ -218,7 +220,7 @@ class BGAAccount:
                     "master"
                 ]
                 if '-' not in value:
-                    return f"levels requires a dash between levels like `good-strong`." 
+                    return f"levels requires a dash between levels like `good-strong`."
                 [min_level, max_level] = value.lower().split('-')
                 if min_level not in valid_levels:
                     return f"Min level {min_level} is not a valid level ({','.join(valid_levels)})"
@@ -235,7 +237,7 @@ class BGAAccount:
                         level_keys["level" + str(i)] = "false"
                 option_data["path"] = "/table/table/changeTableAccessLevel.html"
                 option_data["params"] = level_keys
-            elif option == "players": 
+            elif option == "players":
                 # Change minimum and maximum number of players
                 option_data["path"] = "/table/table/changeWantedPlayers.html"
                 [minp, maxp] = updated_options[option].split('-')
@@ -257,10 +259,10 @@ class BGAAccount:
                 option_data["params"] = {"lang": updated_options[option]}
             else:
                 return f"Option {option} not a valid option."
-        
+
             url_data.append(option_data)
         return url_data
-           
+
     async def get_group_id(self, group_name):
         uri_vars = {"q": group_name, "start": 0, "count": "Infinity"}
         group_uri = urllib.parse.urlencode(uri_vars)
@@ -268,9 +270,9 @@ class BGAAccount:
         result_str = await self.fetch(full_url)
         result = json.loads(result_str)
         group_id = result["items"][0]["id"]  # Choose ID of first result
-        print(f"Found {group_id} for group {group_name}")
+        logging.debug(f"Found {group_id} for group {group_name}")
         return group_id
-    
+
     async def create_table_url(self, table_id):
         """Given the table id, make the table url."""
         return self.base_url + "/table?table=" + str(table_id)
@@ -314,7 +316,12 @@ class BGAAccount:
         url += "?" + urllib.parse.urlencode(params)
         resp = await self.fetch(url)
         resp_json = json.loads(resp)
-        if resp_json["status"] == "0":
+        if "status" in resp_json:
+            if resp_json["status"] == "0":
+                return resp_json["error"]
+            else:
+                return ""
+        else:
             raise IOError("Problem encountered: " + str(resp))
 
     async def add_friend(self, friend_name):

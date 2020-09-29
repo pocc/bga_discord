@@ -1,4 +1,5 @@
 """reate a connection to Board Game Arena and interact with it."""
+import logger
 import json
 import re
 import time
@@ -7,12 +8,14 @@ import random
 
 import aiohttp
 
+logging.basicConfig(filename='errs', level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+
 class TFMPlayer:
     def __init__(self, player_name, colors, options):
         self.name = player_name
         self.colors = [c.lower() for c in colors]
         # options is a string of chars that are each an opt
-        self.options = options.lower()  
+        self.options = options.lower()
 
 class TFMGame:
     """Account user/pass and methods to login/create games with it."""
@@ -25,7 +28,7 @@ class TFMGame:
     async def put_data(self, url, params):
         """Put data."""
         params_str = json.dumps(params)
-        print("\nTFM PUT:", url, "with params", params_str)
+        logger.info("\nTFM PUT:", url, "with params", params_str)
         async with self.session.put(url, data=params_str) as response:
             resp_text = await response.text()
             return resp_text
@@ -38,7 +41,7 @@ class TFMGame:
             return letter in gl or all([letter in p.options for p in pl])
         params = {
           "players": [],
-          # Expansions 
+          # Expansions
           "corporateEra": choose_option(global_opts, players, "e"),
           "prelude": choose_option(global_opts, players, "p"),
           "venusNext": choose_option(global_opts, players, "v"),
@@ -46,7 +49,7 @@ class TFMGame:
           "colonies": choose_option(global_opts, players, "c"),
           "turmoil": choose_option(global_opts, players, "t"),
           "promoCardsOption": choose_option(global_opts, players, "o"),
-          
+
           # Options
           "undoOption": choose_option(global_opts, players, "u"),
           "randomMA": choose_option(global_opts, players, "r"),
@@ -56,7 +59,7 @@ class TFMGame:
           "soloTR": choose_option(global_opts, players, "l"),
           "initialDraft": choose_option(global_opts, players, "i"),
           "shuffleMapOption": choose_option(global_opts, players, "m"),
-        } 
+        }
         special_params = {
           "customCorporationsList": [],
           "customColoniesList": [],
@@ -70,19 +73,19 @@ class TFMGame:
             a_pos = players[0].index("a")
             num_corps = players[0][a_pos+1]
             special_params["startingCorporations"] = num_corps
-        else: 
+        else:
             special_params["startingCorporations"] = "2"
         boards = {"r":"random", "h":"hellas", "e":"elysium", "t":"tharsis"}
         if "b" in global_opts:
             b_pos = global_opts.index("b")
             board_letter = global_opts[b_pos+1]
-            special_params["board"] = boards[board_letter]  
+            special_params["board"] = boards[board_letter]
         elif "b" in all(["b" in p.options for p in players]):
             # Use player 0 arbitrarily because they are all the same
             b_pos = players[0].index("b")
             board_letter = players[0].options[b_pos+1]
-            special_params["board"] = boards[board_letter]  
-        else: 
+            special_params["board"] = boards[board_letter]
+        else:
             special_params["board"] = "random"
         params.update(special_params)
         used_colors = []
@@ -118,14 +121,14 @@ class TFMGame:
         # /new-game is for the gui, but /game is for game creation and an API endpoint
         url = self.base_url + "/game"
         resp = await self.put_data(url, params)
-        print("Received response", resp)
+        logger.debug("Received response", resp)
         resp_json = json.loads(resp)
         self.table_id = resp_json["id"]
         # To create the player links that are sent to everyone, Use /player?id=<ID>
         self.created_player_list = [
             {
                 "name":        player["name"],
-                "color":       player["color"], 
+                "color":       player["color"],
                 "player_id":   player["id"],
                 "player_link": self.base_url + "/player?id=" + player["id"]
             } for player in resp_json["players"]

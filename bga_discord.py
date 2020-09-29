@@ -2,6 +2,7 @@
 from cryptography.fernet import Fernet
 import discord
 import json
+import logging
 import os
 import re
 import shlex
@@ -12,13 +13,14 @@ from bga_mediator import BGAAccount, get_game_list
 from tfm_mediator import TFMGame, TFMPlayer
 
 
-client = discord.Client()
+logging.basicConfig(filename='errs', level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
 
+client = discord.Client()
 
 @client.event
 async def on_ready():
     """Let the user who started the bot know that the connection succeeded."""
-    print(f'{client.user.name} has connected to Discord!')
+    logging.info(f'{client.user.name} has connected to Discord!')
     # Create words under bot that say "Listening to !bga"
     listening_to_help = discord.Activity(type=discord.ActivityType.listening, name="!bga")
     await client.change_presence(activity=listening_to_help)
@@ -36,16 +38,32 @@ async def on_message(message):
         if message.content.count("\"") % 2 == 1:
             await message.author.send(f"You entered \n`{message.content}`\nwhich has an odd number of \" characters. Please fix this and retry.")
             return
-        print("Received message", message.content)
+        log.debug("Received message", message.content)
         try:
             if message.content.startswith('!bga'):
                 await init_bga_game(message)
             if message.content.startswith('!tfm'):
                 await init_tfm_game(message)
         except Exception as e:
-            print("Encountered error:", e, "\n", traceback.format_exc())
+            log.error("Encountered error:", e, "\n", traceback.format_exc())
             await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
-
+    # Integration with bosspiles bot. If this bot sees `@user1 :vs: @user2`,
+    # Do not assume that calling user is a player in the game
+    # For now, only bosspile bot posts will be read
+    elif re.match(r"<@!?(\d+)> :vs: <@!?(\d+)>", message.content) and message.author.id == 713362507770626149:
+        matches = re.findall(r"<@!?(\d+)> :vs: <@!?(\d+)>", message.content)
+        for match in matches:
+            p1_discord_id, p2_discord_id = match
+            log.debug("Found potential match", p1_discord_id, p2_discord_id)
+            game_name = message.channel.name.replace('bosspile', '').replace('-', '')
+            p1_bga_data = get_login(p1_discord_id)
+            p2_bga_data = get_login(p2_discord_id)
+            # Reconstitute players
+            p1, p2 = '<@!' + p1_discord_id + '>', '<@!' + p2_discord_id + '>'
+            if p1_bga_data and p1_bga_data["password"]:
+                await setup_bga_game(message, p1_discord_id, game_name, [p1, p2], {"speed": "slow"})
+            elif p2_bga_data and p2_bga_data["password"]:
+                await setup_bga_game(message, p2_discord_id, game_name, [p1, p2], {"speed": "slow"})
 
 async def init_bga_game(message):
     args = shlex.split(message.content)
@@ -73,7 +91,7 @@ async def init_bga_game(message):
             await message.channel.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
                                       "Make sure that the discord tag has an @ and is purple.")
             return
-        discord_id = discord_tag[3:-1]  # Remove <@!...> part of discord tag
+        discord_id = re.match(r"<@!?(\d+)>", discord_tag)[1] # Remove <@!...> part of discord tag
         bga_user = args[3]
         await link_accounts(message, discord_id, bga_user)
     elif command == "make":
@@ -86,10 +104,11 @@ async def init_bga_game(message):
         for arg in args:
             if ":" in arg:
                 key, value = arg.split(":")[:2]
-                options.append([key, value]) 
+                options.append([key, value])
                 # Options with : are not players
                 players.remove(arg)
-        await setup_bga_game(message, game, players, options)
+        discord_id = message.author.id
+        await setup_bga_game(message, discord_id, game, players, options)
     elif command == "friend":
         await add_friends(args[2:], message)
     elif command == "options":
@@ -113,14 +132,14 @@ async def init_tfm_game(message):
         global_opts = args[1][1:]
         args.remove(args[1])
     for arg in args[1:]:
-        print(f"Parsing arg `{arg}`")
+        log.debug(f"Parsing arg `{arg}`")
         all_args = arg.split(';')
         if len(all_args) == 2:
             name, colors = all_args
             opts = ""
         elif len(all_args) == 3:
-            name, colors, opts = all_args 
-        else: 
+            name, colors, opts = all_args
+        else:
             await message.author.send("Too many semicolons in player string (expected 2-3)!")
             return
         if not re.match("[rygbpk]+", colors):
@@ -139,7 +158,7 @@ async def init_tfm_game(message):
     for player in data:
         color_circle = f":{player['color']}_circle:"
         player_line = f"**{i} {color_circle} {player['name']}**\t [Link to Game]({player['player_link']})"
-        guild_members = [m.display_name.lower() for m in message.guild.members] 
+        guild_members = [m.display_name.lower() for m in message.guild.members]
         player_lines.append(player_line)
         i += 1
     author_line = ""  # It's not as important to have a game creator - the bot is the game creator
@@ -201,7 +220,7 @@ __**Options**__
 `r` **randomMA** (Random Milestones and Awards)
 > Picks 5 milestones and awards at random (6 if playing with Venus Next expansion).
 `d` **draftVariant**
-> During the Research phase, players select cards one at a time and pass the remaining cards clockwise (during 
+> During the Research phase, players select cards one at a time and pass the remaining cards clockwise (during
 > even generations) or anti-clockwise (during odd generations), before deciding how many cards to purchase.
 `s` **showOtherPlayersVP**
 > Show other players VPs, including from milestones, awards, and cards. This is dynamically updated.
@@ -212,9 +231,9 @@ __**Options**__
 `l` **soloTR**
 > Win by achieving a Terraform Rating of 63 by game end, instead of the default goal of completing all global parameters.
 `i` **initialDraft**
-> Adds a draft mechanic for starting cards. Choose 1 project cards among 5 and pass the rest to the player on your left. 
-> Then 1 project cards among 4 and pass the rest to the player on your left. Same process with another 5 project cards 
-> but pass to the player on your right. If prelude option is activated, choose 1 prelude card among 4 and pass the rest 
+> Adds a draft mechanic for starting cards. Choose 1 project cards among 5 and pass the rest to the player on your left.
+> Then 1 project cards among 4 and pass the rest to the player on your left. Same process with another 5 project cards
+> but pass to the player on your right. If prelude option is activated, choose 1 prelude card among 4 and pass the rest
 > to the player on your left. Then 1 prelude card among 3 and pass the rest to the player on your left. Repeat.*
 > Random Milestones and Awards
 `m` **shuffleMapOption**
@@ -249,7 +268,8 @@ Set Predefined Game
 
 
 async def add_friends(friends, message):
-    account = await get_active_session(message)
+    discord_id = message.author.id
+    account = await get_active_session(message, discord_id)
     for friend in friends:
         err_msg = await account.add_friend(friend)
         if err_msg:
@@ -267,9 +287,9 @@ async def bga_list_games(message):
     # Need to truncate at 1000 chars because max message length for discord is 2000
     tr_games = [g[:22] for g in game_list]
     retmsg = ""
-    for i in range(len(tr_games)//5): 
-        retmsg += "\n`{:<24}{:<24}{:<24}{:<24}{:<24}`".format(*tr_games[5*i:5*(i+1)]) 
-        print("Next line", retmsg, len(retmsg))
+    for i in range(len(tr_games)//5):
+        retmsg += "\n`{:<24}{:<24}{:<24}{:<24}{:<24}`".format(*tr_games[5*i:5*(i+1)])
+        log.debug("Next line", retmsg, len(retmsg))
         if len(retmsg) > 1000:
             await message.channel.send(retmsg)
             retmsg = ""
@@ -294,12 +314,11 @@ async def setup_bga_account(message, bga_username, bga_password):
         await message.author.send("Bad username or password. Try putting quotes around both.")
 
 
-async def get_active_session(message):
+async def get_active_session(message, discord_id):
     """Get an active session with the author's login info."""
-    discord_id = message.author.id
     login_info = get_login(discord_id)
     if not login_info:
-        await message.channel.send("You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info.")
+        await message.channel.send(f"<@{discord_id}>: You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info.")
         return
     # bogus_password ("") used for linking accounts, but is not full account setup
     if login_info["password"] == "":
@@ -318,31 +337,36 @@ async def get_active_session(message):
 async def link_accounts(message, discord_id, bga_username):
     """Link a BGA account to a discord account"""
     # An empty password signifies a linked but not setup account
-    bogus_password = ""
-    account = await get_active_session(message)
+    logins = get_all_logins()
+    if str(discord_id) in logins and logins[str(discord_id)]["username"]:
+        await message.channel.send(f"{bga_username} has already run link or setup. Not linking.")
+        return
+    linking_agent = message.author.id
+    account = await get_active_session(message, linking_agent)
     if not account:
         return
     bga_id = await account.get_player_id(bga_username)
     if bga_id == -1:
         await message.channel.send(f"Unable to find {bga_username}. Are you sure it's spelled correctly?")
         return
+    bogus_password = ""
     save_data(discord_id, bga_id, bga_username, bogus_password)
     await message.channel.send(f"Discord <@!{str(discord_id)}> successfully linked to BGA {bga_username}.")
     await account.close_connection()
 
 
-async def setup_bga_game(message, game, players, options):
+async def setup_bga_game(message, p1_discord_id, game, players, options):
     """Setup a game on BGA based on the message."""
-    account = await get_active_session(message)
+    account = await get_active_session(message, p1_discord_id)
     if account == None: # If err, fail now
         return
     table_msg = await message.channel.send("Creating table...")
-    await create_bga_game(message, account, game, players, options)
+    await create_bga_game(message, account, game, players, p1_discord_id, options)
     await table_msg.delete()
     await account.close_connection()
 
 
-async def create_bga_game(message, bga_account, game, players, options):
+async def create_bga_game(message, bga_account, game, players, p1_id, options):
     """Create the actual BGA game."""
     # If the player is a discord tag, this will be
     # {"bga player": "discord tag"}, otherwise {"bga player":""}
@@ -360,7 +384,7 @@ async def create_bga_game(message, bga_account, game, players, options):
         await message.channel.send(err_msg)
         return
     table_url = await bga_account.create_table_url(table_id)
-    author_bga = get_login(message.author.id)["username"]
+    author_bga = get_login(p1_id)["username"]
     # Don't invite the creator to their own game!
     if author_bga in bga_players:
         bga_players.remove(author_bga)
@@ -369,8 +393,11 @@ async def create_bga_game(message, bga_account, game, players, options):
         if bga_player_id == -1:
             error_players.append(f"`{bga_player}` is not a BGA player")
         else:
-            await bga_account.invite_player(table_id, bga_player_id)
-            valid_bga_players.append(bga_player)
+            error = await bga_account.invite_player(table_id, bga_player_id)
+            if len(error) > 0:  # If there's error text
+                error_players.append(f"Unable to add `{bga_player}` because {error}")
+            else:
+                valid_bga_players.append(bga_player)
     for bga_name in valid_bga_players:
         discord_tag = bga_discord_user_map[bga_name]
         if len(discord_tag) > 0:  # If the player was passed in as a discord tag
@@ -382,7 +409,7 @@ async def create_bga_game(message, bga_account, game, players, options):
                 invited_players.append(f"{discord_tag} (BGA {bga_name})")
             else:
                 invited_players.append(f"(BGA {bga_name}) needs to run `!bga link <discord user> <bga user>` on discord (discord tag not found)")
-    author_str = f"\n:crown: <@!{message.author.id}> (BGA {author_bga})"
+    author_str = f"\n:crown: <@!{p1_id}> (BGA {author_bga})"
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
     error_players_str = "".join(["\n:x: " + p for p in error_players])
     await send_table_embed(message, game, table_url, author_str, invited_players_str, "Failed to Invite", error_players_str)
@@ -396,8 +423,9 @@ async def find_bga_users(players, error_players):
     bga_discord_user_map = {}
     for i in range(len(players)):
         # discord @ mentions look like <@!12345123412341> in message.content
-        if players[i][0] == "<":
-            player_discord_id = players[i][3:-1]
+        match = re.match(r"<@!?(\d+)>", players[i])
+        if match:
+            player_discord_id = match[1]
             # If we have login data cached locally for this player, use it.
             bga_player = get_login(player_discord_id)
             if bga_player:
@@ -458,7 +486,7 @@ def get_discord_id(bga_name, message):
 
 async def send_table_embed(message, game, desc, author, players, second_title, second_content):
     """Create a discord embed to send the message about table creation."""
-    print(f"Sending embed with message {message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
+    log.debug(f"Sending embed with message {message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
     retmsg = discord.Embed(
         title=game,
         description=desc,
@@ -492,10 +520,10 @@ __**Available commands**__
     **link @discord_tag bga_username**
         NOTE: If you run setup, linking accounts is done automatically.
 
-        link is used to connect someone's discord account to their 
-        BGA account if you already know both. They will not have 
+        link is used to connect someone's discord account to their
+        BGA account if you already know both. They will not have
         to run setup, but they will not be able to host games.
-    
+
     **make game user1 user2...**
         make is used to create games on BGA using the account details from setup.
         The game is required, but the number of other users can be >= 0.
@@ -509,42 +537,42 @@ __**Available commands**__
     help_text2 = """
 __**Examples**__
 
-    **setup** 
+    **setup**
         Example setup of account for Alice (`Pixlane` on BGA):
-        
+
         `!bga setup "Pixlane" "MySuperSecretPassword!"`
-        
+
         On success, output should be:
-        
+
         `Account Pixlane setup successfully!`
-        
+
         If you send this message in a public channel, this bot will read and immediately delete it.
-    
-     **Link** 
+
+     **Link**
         Example setup of account by Alice for Bob (`D Fang` on BGA, @Bob on discord):
-        
+
         `!bga link @Bob "D Fang"`
-        
+
         On success, output should be:
-        
+
         `Discord @Bob successfully linked to BGA D Fang.`
-    
+
     **make**
         1. For example, Alice (`Pixlane` on BGA) wants to create a game of Race for the Galaxy
-        and wants to invite Bob (`D Fang` on BGA) and Charlie (`_Evanselia_` on Discord), 
+        and wants to invite Bob (`D Fang` on BGA) and Charlie (`_Evanselia_` on Discord),
         using their BGA usernames. To do this, she would type
-        
+
         `!bga make "Race for the Galaxy" "D Fang" @Evanselia`
-        
+
         Note: Alice does not need to invite herself to her own game, so she does not add her own name.
-        
-        2. Let's say that Alice wants to type their discord names instead. It would look like 
-        
+
+        2. Let's say that Alice wants to type their discord names instead. It would look like
+
         `!bga make "Race for the Galaxy" @Bob @Charlie`
-        
+
         Note: Everyone listed needs to have run `!bga setup <bga user> <bga pass>` for this to work.
         On success, output for both options should look like:
-    
+
         `@Alice invited @Bob (D Fang), @Charlie (_Evanselia_): https://boardgamearena.com/table?table=88710056`
 """
     help_text1 = help_text1.replace(4*" ", "\t")
@@ -595,7 +623,7 @@ The default is marked with a *
     `strong      (300-499)`
     `export      (500-600)`
     `master      (600+)`
-     
+
     ex: `minlevel:apprentice`
 **maxlevel**: The maximum level of player to play against. You must be at least your max level to choose it.
     `beginner    (0)`
@@ -605,13 +633,13 @@ The default is marked with a *
     `strong      (300-499)`
     `export      (500-600)`
     `master *    (600+)`
-    
+
     ex: `maxlevel:expert`
 **restrictgroup**: A group name in double quotes to restrict the game to. You should be able to find the group here if it exists: boardgamearena.com/community. You can only use this option if you are a member of that community.
     Default is no group restriction
     Ex: restrictgroup:"BGA Discord Bosspiles" will limit a game to this group
     Ex: "My friends" is a valid group for everyone.
-**lang**: ISO639-1 language code like en, es, fr, de. To find yours: en.wikipedia.org/wiki/List_of_ISO_639-1_codes 
+**lang**: ISO639-1 language code like en, es, fr, de. To find yours: en.wikipedia.org/wiki/List_of_ISO_639-1_codes
     Default language is none
 
 _You can also specify options/values like 200:12 if you know what they are by looking at the HTML._
