@@ -1,6 +1,5 @@
 """Bot to create games on discord."""
 from cryptography.fernet import Fernet
-import discord
 import json
 import logging
 import os
@@ -8,19 +7,22 @@ import re
 import shlex
 import traceback
 
+import discord
+
 from keys import TOKEN, FERNET_KEY
 from bga_mediator import BGAAccount, get_game_list
 from tfm_mediator import TFMGame, TFMPlayer
 
-
 logging.basicConfig(filename='errs', level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+logger = logging.getLogger(__name__)
+logging.getLogger('discord').setLevel(logging.WARN)
 
 client = discord.Client()
 
 @client.event
 async def on_ready():
     """Let the user who started the bot know that the connection succeeded."""
-    logging.info(f'{client.user.name} has connected to Discord!')
+    logger.info(f'{client.user.name} has connected to Discord!')
     # Create words under bot that say "Listening to !bga"
     listening_to_help = discord.Activity(type=discord.ActivityType.listening, name="!bga")
     await client.change_presence(activity=listening_to_help)
@@ -33,28 +35,30 @@ async def on_message(message):
     if message.author == client.user:
         return
     if message.content.startswith('!bga') or message.content.startswith('!tfm'):
+        logger.debug(f"Received message {message.content}")
         # Replace the quotes on a German keyboard with regular ones.
         message.content.replace('„', '"').replace('“', '"')
         if message.content.count("\"") % 2 == 1:
             await message.author.send(f"You entered \n`{message.content}`\nwhich has an odd number of \" characters. Please fix this and retry.")
             return
-        log.debug("Received message", message.content)
         try:
             if message.content.startswith('!bga'):
                 await init_bga_game(message)
             if message.content.startswith('!tfm'):
                 await init_tfm_game(message)
         except Exception as e:
-            log.error("Encountered error:", e, "\n", traceback.format_exc())
+            logger.error("Encountered error:", str(e) + "\n" + str(traceback.format_exc()))
             await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
     # Integration with bosspiles bot. If this bot sees `@user1 :vs: @user2`,
     # Do not assume that calling user is a player in the game
     # For now, only bosspile bot posts will be read
     elif re.match(r"<@!?(\d+)> :vs: <@!?(\d+)>", message.content) and message.author.id == 713362507770626149:
+        num_users = len([p for p in get_all_logins() if len(p["password"]) > 0])
+        logger.debug(f"Found {str(num_users)} users with accounts.")
         matches = re.findall(r"<@!?(\d+)> :vs: <@!?(\d+)>", message.content)
         for match in matches:
             p1_discord_id, p2_discord_id = match
-            log.debug("Found potential match", p1_discord_id, p2_discord_id)
+            logger.debug(f"Found potential match {p1_discord_id} {p2_discord_id}")
             game_name = message.channel.name.replace('bosspile', '').replace('-', '')
             p1_bga_data = get_login(p1_discord_id)
             p2_bga_data = get_login(p2_discord_id)
@@ -132,7 +136,7 @@ async def init_tfm_game(message):
         global_opts = args[1][1:]
         args.remove(args[1])
     for arg in args[1:]:
-        log.debug(f"Parsing arg `{arg}`")
+        logger.debug(f"Parsing arg `{arg}`")
         all_args = arg.split(';')
         if len(all_args) == 2:
             name, colors = all_args
@@ -289,7 +293,7 @@ async def bga_list_games(message):
     retmsg = ""
     for i in range(len(tr_games)//5):
         retmsg += "\n`{:<24}{:<24}{:<24}{:<24}{:<24}`".format(*tr_games[5*i:5*(i+1)])
-        log.debug("Next line", retmsg, len(retmsg))
+        logger.debug("Next line", retmsg, len(retmsg))
         if len(retmsg) > 1000:
             await message.channel.send(retmsg)
             retmsg = ""
@@ -486,7 +490,7 @@ def get_discord_id(bga_name, message):
 
 async def send_table_embed(message, game, desc, author, players, second_title, second_content):
     """Create a discord embed to send the message about table creation."""
-    log.debug(f"Sending embed with message {message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
+    logger.debug("Sending embed with message", f"{message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
     retmsg = discord.Embed(
         title=game,
         description=desc,

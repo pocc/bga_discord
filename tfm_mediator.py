@@ -1,5 +1,4 @@
 """reate a connection to Board Game Arena and interact with it."""
-import logger
 import json
 import re
 import time
@@ -7,8 +6,6 @@ import urllib.parse
 import random
 
 import aiohttp
-
-logging.basicConfig(filename='errs', level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
 
 class TFMPlayer:
     def __init__(self, player_name, colors, options):

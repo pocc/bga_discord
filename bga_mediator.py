@@ -1,5 +1,5 @@
 """Create a connection to Board Game Arena and interact with it."""
-import logger
+import logging
 import json
 import re
 import time
@@ -7,7 +7,8 @@ import urllib.parse
 
 import aiohttp
 
-logging.basicConfig(filename='errs', level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+logger = logging.getLogger(__name__)
+logging.getLogger('aiohttp').setLevel(logging.WARN)
 
 async def get_game_list():
     """Get the list of games and numbers BGA assigns to each game."""
@@ -33,17 +34,17 @@ class BGAAccount:
 
     async def fetch(self, url):
         """Generic get."""
-        logging.debug("\nGET:", url)
+        logger.debug("\nGET:", url)
         async with self.session.get(url) as response:
             resp_text = await response.text()
             is_json = resp_text[0] in ["{", "["]
             if is_json:
-                logging.debug("RET JSON: " + resp_text)
+                logger.debug("RET JSON: " + resp_text)
             return resp_text
 
     async def post(self, url, params):
         """Generic post."""
-        logging.debug("LOGIN: " + url + "\nEMAIL: " + params["email"])
+        logger.debug("LOGIN: " + url + "\nEMAIL: " + params["email"])
         await self.session.post(url, data=params)
 
     async def login(self, username, password):
@@ -69,7 +70,7 @@ class BGAAccount:
         matches = re.search(r"[Pp]laying[^<]*<a href=\"\/table\?table=(\d+)", resp)
         if matches is not None:
             table_id = matches[1]
-            logging.debug("Quitting table", table_id)
+            logger.debug("Quitting table", table_id)
             quit_url = self.base_url + "/table/table/quitgame.html"
             params = {
                 "table": table_id,
@@ -118,7 +119,7 @@ class BGAAccount:
         try:
             resp_json = json.loads(resp)
         except json.decoder.JSONDecodeError:
-            logging.error("Unable to decode response json", resp_json)
+            logger.error("Unable to decode response json", resp)
             return -1, "Unable to parse JSON from Board Game Arena."
         if resp_json["status"] == "0":
             err = resp_json["error"]
@@ -133,7 +134,7 @@ class BGAAccount:
         url_data = await self.parse_options(options, table_id)
         if isinstance(url_data, str): # In this case it's an error
             return url_data
-        logging.debug("Got url data ", url_data)
+        logger.debug("Got url data ", str(url_data))
         for url_datum in url_data:
             await self.set_option(table_id, url_datum["path"], url_datum["params"])
 
@@ -163,7 +164,7 @@ class BGAAccount:
         for option in updated_options:
             value = updated_options[option]
             option_data = {}
-            logging.debug(f"Reading option `{option}` with key `{value}`")
+            logger.debug(f"Reading option `{option}` with key `{value}`")
             if option == "mode":
                 option_data["path"] = "/table/table/changeoption.html"
                 mode_name = updated_options[option]
@@ -270,7 +271,7 @@ class BGAAccount:
         result_str = await self.fetch(full_url)
         result = json.loads(result_str)
         group_id = result["items"][0]["id"]  # Choose ID of first result
-        logging.debug(f"Found {group_id} for group {group_name}")
+        logger.debug(f"Found {group_id} for group {group_name}")
         return group_id
 
     async def create_table_url(self, table_id):
