@@ -1,11 +1,15 @@
 """reate a connection to Board Game Arena and interact with it."""
 import json
+import logging
 import re
 import time
 import urllib.parse
 import random
 
 import aiohttp
+
+logger = logging.getLogger(__name__)
+logging.getLogger('aiohttp').setLevel(logging.WARN)
 
 class TFMPlayer:
     def __init__(self, player_name, colors, options):
@@ -25,7 +29,7 @@ class TFMGame:
     async def put_data(self, url, params):
         """Put data."""
         params_str = json.dumps(params)
-        logger.info("\nTFM PUT:", url, "with params", params_str)
+        logger.info(f"\nTFM PUT:{url}, with params:" + params_str)
         async with self.session.put(url, data=params_str) as response:
             resp_text = await response.text()
             return resp_text
@@ -33,6 +37,7 @@ class TFMGame:
     async def generate_shared_params(self, global_opts, players):
         """Generate the shared options where global opts override and
         options that are shared between all players are added."""
+        logger.debug("Starting param generation")
         def choose_option(gl, pl, letter):
             """If it's in global_opts, override player opts. If it's in all player opts, then choose it."""
             return letter in gl or all([letter in p.options for p in pl])
@@ -111,6 +116,7 @@ class TFMGame:
                 "first": i==0
               }
             params["players"].append(new_player)
+        logger.debug("Param generation completed:" + str(params))
         return params
 
     async def create_table(self, params):
@@ -118,7 +124,7 @@ class TFMGame:
         # /new-game is for the gui, but /game is for game creation and an API endpoint
         url = self.base_url + "/game"
         resp = await self.put_data(url, params)
-        logger.debug("Received response", resp)
+        logger.debug("Received response:" + str(resp))
         resp_json = json.loads(resp)
         self.table_id = resp_json["id"]
         # To create the player links that are sent to everyone, Use /player?id=<ID>

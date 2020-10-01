@@ -2,6 +2,7 @@
 from cryptography.fernet import Fernet
 import json
 import logging
+import logging.handlers
 import os
 import re
 import shlex
@@ -13,9 +14,15 @@ from keys import TOKEN, FERNET_KEY
 from bga_mediator import BGAAccount, get_game_list
 from tfm_mediator import TFMGame, TFMPlayer
 
-logging.basicConfig(filename='errs', level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+LOG_FILENAME='errs'
 logger = logging.getLogger(__name__)
 logging.getLogger('discord').setLevel(logging.WARN)
+# Add the log message handler to the logger
+handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=10000000, backupCount=0)
+formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 client = discord.Client()
 
@@ -47,27 +54,37 @@ async def on_message(message):
             if message.content.startswith('!tfm'):
                 await init_tfm_game(message)
         except Exception as e:
-            logger.error("Encountered error:", str(e) + "\n" + str(traceback.format_exc()))
+            logger.error("Encountered error:" + str(e) + "\n" + str(traceback.format_exc()))
             await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
     # Integration with bosspiles bot. If this bot sees `@user1 :vs: @user2`,
     # Do not assume that calling user is a player in the game
     # For now, only bosspile bot posts will be read
-    elif re.match(r"<@!?(\d+)> :vs: <@!?(\d+)>", message.content) and message.author.id == 713362507770626149:
-        num_users = len([p for p in get_all_logins() if len(p["password"]) > 0])
+    elif ":crossed_swords:" in message.content and message.author.id == 713362507770626149:
+        num_users = 0
+        all_logins = get_all_logins()
+        for discord_id in all_logins:
+            if len(all_logins[discord_id]["password"]) > 0:
+                num_users += 1
         logger.debug(f"Found {str(num_users)} users with accounts.")
-        matches = re.findall(r"<@!?(\d+)> :vs: <@!?(\d+)>", message.content)
+        # Leading : because a discord emoji will come before it.
+        matches = re.findall(r": ([^:\n]+) :vs: ([^:\n]+)", message.content)
         for match in matches:
-            p1_discord_id, p2_discord_id = match
-            logger.debug(f"Found potential match {p1_discord_id} {p2_discord_id}")
+            logger.debug(f"Found potential match {str(match)}")
+            p1_text, p2_text = match[0].strip(), match[1].strip()
             game_name = message.channel.name.replace('bosspile', '').replace('-', '')
-            p1_bga_data = get_login(p1_discord_id)
-            p2_bga_data = get_login(p2_discord_id)
-            # Reconstitute players
-            p1, p2 = '<@!' + p1_discord_id + '>', '<@!' + p2_discord_id + '>'
-            if p1_bga_data and p1_bga_data["password"]:
-                await setup_bga_game(message, p1_discord_id, game_name, [p1, p2], {"speed": "slow"})
-            elif p2_bga_data and p2_bga_data["password"]:
-                await setup_bga_game(message, p2_discord_id, game_name, [p1, p2], {"speed": "slow"})
+            if p1_text.startswith("<@"):
+                p1_discord_id = re.match(r"<@!?(\d+)", p1_text)[1]
+            else:  # assume it's a bga name
+                p1_discord_id = get_discord_id(p1_text, message)
+            if p2_text.startswith("<@"):
+                p2_discord_id = re.match(r"<@!?(\d+)", p2_text)[1]
+            else:  # assume it's a bga name
+                p2_discord_id = get_discord_id(p2_text, message)
+            logger.debug(f"Found discord ids: {p1_discord_id} {p2_discord_id}")
+            if p1_discord_id != -1:
+                await setup_bga_game(message, p1_discord_id, game_name, [p1_text, p2_text], {"speed": "slow"})
+            elif p2_discord_id != -1:
+                await setup_bga_game(message, p2_discord_id, game_name, [p1_text, p2_text], {"speed": "slow"})
 
 async def init_bga_game(message):
     args = shlex.split(message.content)
@@ -293,7 +310,7 @@ async def bga_list_games(message):
     retmsg = ""
     for i in range(len(tr_games)//5):
         retmsg += "\n`{:<24}{:<24}{:<24}{:<24}{:<24}`".format(*tr_games[5*i:5*(i+1)])
-        logger.debug("Next line", retmsg, len(retmsg))
+        logger.debug(f"Next line {retmsg} ({len(retmsg)})")
         if len(retmsg) > 1000:
             await message.channel.send(retmsg)
             retmsg = ""
@@ -490,7 +507,7 @@ def get_discord_id(bga_name, message):
 
 async def send_table_embed(message, game, desc, author, players, second_title, second_content):
     """Create a discord embed to send the message about table creation."""
-    logger.debug("Sending embed with message", f"{message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
+    logger.debug(f"Sending embed with message: {message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
     retmsg = discord.Embed(
         title=game,
         description=desc,

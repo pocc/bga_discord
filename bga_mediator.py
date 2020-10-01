@@ -34,7 +34,7 @@ class BGAAccount:
 
     async def fetch(self, url):
         """Generic get."""
-        logger.debug("\nGET:", url)
+        logger.debug("\nGET: "+ url)
         async with self.session.get(url) as response:
             resp_text = await response.text()
             is_json = resp_text[0] in ["{", "["]
@@ -70,7 +70,7 @@ class BGAAccount:
         matches = re.search(r"[Pp]laying[^<]*<a href=\"\/table\?table=(\d+)", resp)
         if matches is not None:
             table_id = matches[1]
-            logger.debug("Quitting table", table_id)
+            logger.debug("Quitting table" + str(table_id))
             quit_url = self.base_url + "/table/table/quitgame.html"
             params = {
                 "table": table_id,
@@ -119,7 +119,7 @@ class BGAAccount:
         try:
             resp_json = json.loads(resp)
         except json.decoder.JSONDecodeError:
-            logger.error("Unable to decode response json", resp)
+            logger.error("Unable to decode response json:" + resp)
             return -1, "Unable to parse JSON from Board Game Arena."
         if resp_json["status"] == "0":
             err = resp_json["error"]
@@ -134,7 +134,7 @@ class BGAAccount:
         url_data = await self.parse_options(options, table_id)
         if isinstance(url_data, str): # In this case it's an error
             return url_data
-        logger.debug("Got url data ", str(url_data))
+        logger.debug("Got url data :" + str(url_data))
         for url_datum in url_data:
             await self.set_option(table_id, url_datum["path"], url_datum["params"])
 
