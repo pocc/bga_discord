@@ -37,9 +37,8 @@ class BGAAccount:
         logger.debug("\nGET: "+ url)
         async with self.session.get(url) as response:
             resp_text = await response.text()
-            is_json = resp_text[0] in ["{", "["]
-            if is_json:
-                logger.debug("RET JSON: " + resp_text)
+            if resp_text[0] in ['{', '[']:  # If it's a json
+                print("RET TEXT: " + resp_text)
             return resp_text
 
     async def post(self, url, params):
@@ -265,6 +264,7 @@ class BGAAccount:
         return url_data
 
     async def get_group_id(self, group_name):
+        """For BGA groups of people."""
         uri_vars = {"q": group_name, "start": 0, "count": "Infinity"}
         group_uri = urllib.parse.urlencode(uri_vars)
         full_url = self.base_url + f"/group/group/findgroup.html?{group_uri}"
@@ -335,6 +335,38 @@ class BGAAccount:
         }
         path = "?" + urllib.parse.urlencode(params)
         await self.fetch(self.base_url + "/community/community/addToFriend.html" + path)
+
+    async def get_tables(self, player_id):
+        """Get all of the tables that a player is playing at. Tables are returned as json objects."""
+        url = self.base_url + "/tablemanager/tablemanager/tableinfos.html"
+        params = {
+            "playerfilter": player_id,
+            "dojo.preventCache": str(int(time.time()))
+        }
+        url += "?" + urllib.parse.urlencode(params)
+        resp = await self.fetch(url)
+        resp_json = json.loads(resp)
+        return resp_json["data"]["tables"]
+
+
+    async def get_table_metadata(self, table_data):
+        """Get the numbure of moves and progress of the game as strings"""
+        table_id = table_data["id"]
+        game_server = table_data["gameserver"]
+        game_name = table_data["game_name"]
+        table_url = f"{self.base_url}/{game_server}/{game_name}?table={table_id}"
+        resp = await self.fetch(table_url)
+        game_progress_match = re.search('updateGameProgression":"([^"]*)"', resp)
+        if game_progress_match:
+            game_progress = game_progress_match[1]
+        else:
+            game_progress = ""
+        num_moves_match = re.search('move_nbr":"([^"]*)"', resp)
+        if num_moves_match:
+            num_moves = num_moves_match[1]
+        else:
+            num_moves = ""
+        return game_progress, num_moves, table_url
 
     async def close_connection(self):
         """Close the connection. aiohttp complains otherwise."""

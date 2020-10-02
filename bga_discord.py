@@ -1,5 +1,6 @@
 """Bot to create games on discord."""
 from cryptography.fernet import Fernet
+import datetime
 import json
 import logging
 import logging.handlers
@@ -130,6 +131,8 @@ async def init_bga_game(message):
                 players.remove(arg)
         discord_id = message.author.id
         await setup_bga_game(message, discord_id, game, players, options)
+    elif command == "tables": # Get all tables that have players in common
+        await get_tables_by_players(args[2:], message)
     elif command == "friend":
         await add_friends(args[2:], message)
     elif command == "options":
@@ -471,7 +474,7 @@ def save_data(discord_id, bga_userid, bga_username, bga_password):
 
 
 def get_all_logins():
-    """Get the login details from the text store."""
+    """Get the login details from the encrypted text store."""
     cipher_suite = Fernet(FERNET_KEY)
     if os.path.exists("bga_keys"):
         with open("bga_keys", "rb") as f:
@@ -504,6 +507,49 @@ def get_discord_id(bga_name, message):
             return member.id
     return -1
 
+
+async def get_tables_by_players(players, message):
+    ret_msg = ""
+    bga_ids = []
+    tables = {}
+    bga_mediator = BGAAccount()
+    for player in players:
+        if player.startswith('<@'):
+            await message.channel.send("Not yet set up to read discord tags.")
+            await bga_mediator.close_connection()
+            return
+        bga_id = await bga_mediator.get_player_id(player)
+        if bga_id == -1:
+            await message.channel.send(f"Player {player} is not a valid bga name.")
+            await bga_mediator.close_connection()
+            return
+        bga_ids.append(bga_id)
+        player_tables = await bga_mediator.get_tables(bga_id)
+        tables.update(player_tables)
+    for table_id in tables:
+        table = tables[table_id]
+        logger.debug(f"Checking table {table_id} for bga_ids {str(bga_ids)} in table {str(table)}")
+        if set(bga_ids).issubset(table["player_display"]):
+            game_name = table["game_name"]
+            player_dicts = table["players"]
+            print('pd', player_dicts)
+            player_names = [player_dicts[player_id]["fullname"] for player_id in player_dicts]
+            days_age = (datetime.datetime.utcnow()- datetime.datetime.fromtimestamp(int(table["gamestart"]))).days
+            percent_done, num_moves, table_url = await bga_mediator.get_table_metadata(table)
+            percent_text = ""
+            if percent_done: # If it's at 0%, we won't get a number
+                percent_text = f"\t\tat {percent_done}%"
+            names = []
+            for p in table["players"]:
+                p_name = table["players"][p]["fullname"]
+                if table["players"][p]["table_order"] == '1':
+                    p_name = '**' + p_name + ' to play**'
+                names.append(p_name)
+            ret_msg += f"__{game_name}__\t\t[**{'**, **'.join(player_names)}**]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\t\t<{table_url}>\n"
+    if len(ret_msg) == 0:
+        ret_msg = "No tables found between players " + str(players)
+    await bga_mediator.close_connection()
+    await message.channel.send(ret_msg)
 
 async def send_table_embed(message, game, desc, author, players, second_title, second_content):
     """Create a discord embed to send the message about table creation."""
@@ -550,6 +596,10 @@ __**Available commands**__
         The game is required, but the number of other users can be >= 0.
         Each user can be a discord_tag if it has an @ in front of it; otherwise, it
         will be treated as a board game arena account name.
+
+    **tables user1 user2...**
+        tables shows the tables that all specified users are playing at.
+        To see just the games you are playing at use `tables <your bga username>`.
 
     **options**
         Print the available options that can be specified with make.
