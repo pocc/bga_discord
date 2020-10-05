@@ -96,10 +96,10 @@ async def init_bga_game(message):
     command = args[1]
     if command == "list":
         await bga_list_games(message)
-    elif command == "setup":
+    elif command == "setup":  
         if len(args) != 4:
             await message.channel.send("Setup requires a BGA username and "
-                                      "password. Run `!bga` to see setup examples.")
+                                       "password. Run `!bga` to see setup examples.")
             return
         bga_user = args[2]
         bga_passwd = args[3]
@@ -109,11 +109,12 @@ async def init_bga_game(message):
         if len(args) != 4:
             await message.channel.send("link got the wrong number of arguments. Run `!bga` to see link examples.")
         discord_tag = args[2]
-        if discord_tag[0] != "<":
+        id_matches = re.match(r"<@!?(\d+)>", discord_tag)
+        if not id_matches:
             await message.channel.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
                                       "Make sure that the discord tag has an @ and is purple.")
             return
-        discord_id = re.match(r"<@!?(\d+)>", discord_tag)[1] # Remove <@!...> part of discord tag
+        discord_id = id_matches[1]
         bga_user = args[3]
         await link_accounts(message, discord_id, bga_user)
     elif command == "make":
@@ -182,7 +183,6 @@ async def init_tfm_game(message):
     for player in data:
         color_circle = f":{player['color']}_circle:"
         player_line = f"**{i} {color_circle} {player['name']}**\t [Link to Game]({player['player_link']})"
-        guild_members = [m.display_name.lower() for m in message.guild.members]
         player_lines.append(player_line)
         i += 1
     author_line = ""  # It's not as important to have a game creator - the bot is the game creator
@@ -306,20 +306,21 @@ async def add_friends(friends, message):
 
 async def bga_list_games(message):
     """List the games that BGA currently offers."""
-    game_data = await get_game_list()
+    game_data, err_msg = await get_game_list()
+    if len(err_msg) > 0:
+        await message.channel.send(err_msg)
+        return         
     game_list = list(game_data.keys())
-    # Need to truncate at 1000 chars because max message length for discord is 2000
     tr_games = [g[:22] for g in game_list]
     retmsg = ""
-    for i in range(len(tr_games)//5):
-        retmsg += "\n`{:<24}{:<24}{:<24}{:<24}{:<24}`".format(*tr_games[5*i:5*(i+1)])
-        logger.debug(f"Next line {retmsg} ({len(retmsg)})")
-        if len(retmsg) > 1000:
-            await message.channel.send(retmsg)
+    for i in range(len(tr_games)//5+1):
+        retmsg += '\n'
+        for game_name in tr_games[5*i:5*(i+1)]:
+            retmsg += "{:<24}".format(game_name)
+        if i%15 == 0 and i > 0 or i == len(tr_games)//5:
+            # Need to truncate at 1000 chars because max message length for discord is 2000
+            await message.channel.send("```" + retmsg + "```")
             retmsg = ""
-    if len(retmsg) > 0:
-        await message.channel.send(retmsg)
-
 
 async def setup_bga_account(message, bga_username, bga_password):
     """Save and verify login info."""
@@ -526,26 +527,41 @@ async def get_tables_by_players(players, message):
         bga_ids.append(bga_id)
         player_tables = await bga_mediator.get_tables(bga_id)
         tables.update(player_tables)
+    def normalize_name(game_name):
+        return re.sub("[^a-z]+", "", game_name.lower())
+    bga_games, err_msg = await get_game_list()
+    if len(err_msg) > 0:
+        await message.channel.send(err_msg)
+        return   
+    normalized_bga_games = [normalize_name(game) for game in bga_games]
     for table_id in tables:
         table = tables[table_id]
-        logger.debug(f"Checking table {table_id} for bga_ids {str(bga_ids)} in table {str(table)}")
         if set(bga_ids).issubset(table["player_display"]):
+            logger.debug(f"Checking table {table_id} for bga_ids {str(bga_ids)} in table {str(table)}")
             game_name = table["game_name"]
+            if normalize_name(game_name) not in normalized_bga_games:
+                await bga_mediator.close_connection()
+                await message.channel.send(f"{game_name} is not a BGA game.")
+                return
             player_dicts = table["players"]
             print('pd', player_dicts)
-            player_names = [player_dicts[player_id]["fullname"] for player_id in player_dicts]
-            days_age = (datetime.datetime.utcnow()- datetime.datetime.fromtimestamp(int(table["gamestart"]))).days
+            # If a game has not started, but it is scheduled, it will None here.
+            if table["gamestart"]:
+                gamestart = table["gamestart"]
+            else:
+                gamestart = table["scheduled"]
+            days_age = (datetime.datetime.utcnow()- datetime.datetime.fromtimestamp(int(gamestart))).days
             percent_done, num_moves, table_url = await bga_mediator.get_table_metadata(table)
             percent_text = ""
             if percent_done: # If it's at 0%, we won't get a number
                 percent_text = f"\t\tat {percent_done}%"
-            names = []
-            for p in table["players"]:
-                p_name = table["players"][p]["fullname"]
-                if table["players"][p]["table_order"] == '1':
+            p_names = []
+            for p_id in table["players"]:
+                p_name = table["players"][p_id]["fullname"]
+                if table["players"][p_id]["table_order"] == str(table["current_player_nbr"]):
                     p_name = '**' + p_name + ' to play**'
-                names.append(p_name)
-            ret_msg += f"__{game_name}__\t\t[**{'**, **'.join(player_names)}**]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\t\t<{table_url}>\n"
+                p_names.append(p_name)
+            ret_msg += f"__{game_name}__\t\t[{', '.join(p_names)}]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\t\t<{table_url}>\n"
     if len(ret_msg) == 0:
         ret_msg = "No tables found between players " + str(players)
     await bga_mediator.close_connection()

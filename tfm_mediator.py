@@ -22,7 +22,7 @@ class TFMGame:
     """Account user/pass and methods to login/create games with it."""
     def __init__(self):
         self.session = aiohttp.ClientSession()
-        self.base_url = "https://terraforming-mars.herokuapp.com"
+        self.base_url = "https://tfm.msydevops.fr"
         self.table_id = 0
         self.created_player_list = []
 
@@ -67,16 +67,19 @@ class TFMGame:
           "customColoniesList": [],
           "seed": random.random(),
         }
+        # default to 2 corporations
+        special_params["startingCorporations"] = "2"
         if "a" in global_opts:  # num_corps should be >=1, <=6
             a_pos = global_opts.index("a")
             num_corps = global_opts[a_pos+1]
-            special_params["startingCorporations"] = num_corps
+            if num_corps.isdigit():
+                special_params["startingCorporations"] = num_corps
         elif "a" in all(["a" in p.options for p in players]):
             a_pos = players[0].index("a")
             num_corps = players[0][a_pos+1]
-            special_params["startingCorporations"] = num_corps
-        else:
-            special_params["startingCorporations"] = "2"
+            if num_corps.isdigit():
+                special_params["startingCorporations"] = num_corps
+
         boards = {"r":"random", "h":"hellas", "e":"elysium", "t":"tharsis"}
         if "b" in global_opts:
             b_pos = global_opts.index("b")

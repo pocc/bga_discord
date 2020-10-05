@@ -1,4 +1,5 @@
 """Create a connection to Board Game Arena and interact with it."""
+import atexit
 import logging
 import json
 import re
@@ -11,21 +12,31 @@ logger = logging.getLogger(__name__)
 logging.getLogger('aiohttp').setLevel(logging.WARN)
 
 async def get_game_list():
-    """Get the list of games and numbers BGA assigns to each game."""
+    """Get the list of games and numbers BGA assigns to each game.
+    The url below should be accessible unauthenticated (test with curl).
+    """
     url = 'https://boardgamearena.com/gamelist?section=all'
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession() as session:          
         async with session.get(url) as response:
+            if response.status >= 400:
+                # If there's a problem with getting the most accurate list, use cached version
+                with open("bga_game_list.json", "r") as f:
+                    logger.debug("Loading game list from cache because BGA was unavailable")
+                    return json.loads(f.read()), ""
             html = await response.text()
+            # Parse an HTML list
             results = re.findall(r"item_tag_\d+_(\d+)[\s\S]*?name\">\s+([^<>]*)\n", html)
-            # Sorting games isn't necessary, but I prefer it
+            # Sorting games so when writing, git picks up on new entries
             results.sort(key=lambda x: x[1])
             games = {}
             for r in results:
                 games[r[1]] = int(r[0])
-            return games
+            with open("bga_game_list.json", "w") as f:
+                f.write(json.dumps(games))
+            return games, ""
 
 
-class BGAAccount:
+class BGAAccount: 
     """Account user/pass and methods to login/create games with it."""
     # Select numbers for changing options in a game
     def __init__(self):
@@ -61,6 +72,16 @@ class BGAAccount:
         await self.post(url, params)
         return await self.verify_privileged()
 
+    async def logout(self):
+        """Logout of current session."""
+        url = self.base_url + "/account/account/logout.html"
+        params = {
+            "dojo.preventCache": str(int(time.time()))
+        }
+        url += "?" + urllib.parse.urlencode(params)
+        await self.fetch(url)
+        return await self.verify_privileged()
+
     async def quit_table(self):
         """ Quit the table if the player is currently at one"""
         url = self.base_url + "/player"
@@ -84,9 +105,13 @@ class BGAAccount:
         """Create a table and return its url. 201,0 is to set to normal mode.
         Partial game names are ok, like race for raceforthegalaxy.
         Returns (table id (int), error string (str))"""
+        # Try to close any logged-in session gracefully
+        atexit.register(self.logout)
         lower_game_name = re.sub(r"[^a-z0-9]", "", game_name_part.lower())
         await self.quit_table()
-        games = await get_game_list()
+        games, err_msg = await get_game_list()
+        if len(err_msg) > 0:
+            return -1, err_msg
         lower_games = {}
         for game in games:
             lower_name = re.sub(r"[^a-z0-9]", "", game.lower())
@@ -99,7 +124,7 @@ class BGAAccount:
         if len(games_found) == 0:
             err = f"`{lower_game_name}` is not available on BGA. Check your spelling " \
                 f"(capitalization and special characters do not matter)."
-            return e1, err
+            return -1, err
         elif len(games_found) > 1:
             err = f"`{lower_game_name}` matches [{','.join(games_found)}]. Use more letters to match."
             return -1, err
@@ -172,38 +197,38 @@ class BGAAccount:
                     return f"Valid modes are training and normal. You entered {mode_name}."
                 mode_id = mode_types[mode_name]
                 option_data["params"] = {
-                  "id": 201,
-                  "value": mode_id
+                    "id": 201,
+                    "value": mode_id
                 }
             elif option == "speed":
                 option_data["path"] = "/table/table/changeoption.html"
                 speed_name = updated_options[option]
                 speed_values = {
-                   "fast": 0,
-                   "normal": 1,
-                   "slow": 2,
-                   "24/day": 10,
-                   "12/day": 11,
-                   "8/day": 12,
-                   "4/day": 13,
-                   "3/day": 14,
-                   "2/day": 15,
-                   "1/day": 17,
-                   "1/2days": 19,
-                   "nolimit": 20,
+                    "fast": 0,
+                    "normal": 1,
+                    "slow": 2,
+                    "24/day": 10,
+                    "12/day": 11,
+                    "8/day": 12,
+                    "4/day": 13,
+                    "3/day": 14,
+                    "2/day": 15,
+                    "1/day": 17,
+                    "1/2days": 19,
+                    "nolimit": 20,
                 }
                 if speed_name not in list(speed_values.keys()):
                     return f"{speed_name} is not a valid speed. Check !bga options."
                 speed_id = speed_values[speed_name]
                 option_data["params"] = {
-                  "id": 200,
-                  "value": speed_id
+                    "id": 200,
+                    "value": speed_id
                 }
             elif option == "minrep":
                 option_data["path"] = "/table/table/changeTableAccessReputation.html"
                 karma_numbers = {"0": 0, "50": 1, "65": 2, "75": 3, "85": 4}
                 if value not in list(karma_numbers.keys()):
-                     return f"Invalid minimum karma {value}. Valid values are 0, 50, 65, 75, 85."
+                    return f"Invalid minimum karma {value}. Valid values are 0, 50, 65, 75, 85."
                 option_data["params"] = {"karma": karma_numbers[value]}
             elif option == "presentation":
                 # No error checking is necessary as every string is valid.
@@ -253,7 +278,7 @@ class BGAAccount:
                     option_data["params"] = {"group": group_id}
                 else:
                     groups_str = "[`" + "`,`".join([g[1] for g in group_options if g[1] != '-']) + "`]"
-                    return f"Unable to find group {value}. You are a member of groups {group_str}."
+                    return f"Unable to find group {value}. You are a member of groups {groups_str}."
             elif option == "lang":
                 option_data["path"] = "/table/table/restrictToLanguage.html"
                 option_data["params"] = {"lang": updated_options[option]}
