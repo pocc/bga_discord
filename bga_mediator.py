@@ -2,6 +2,7 @@
 import atexit
 import logging
 import json
+import os
 import re
 import time
 import urllib.parse
@@ -9,14 +10,20 @@ import urllib.parse
 import aiohttp
 
 logger = logging.getLogger(__name__)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger('aiohttp').setLevel(logging.WARN)
 
 async def get_game_list():
     """Get the list of games and numbers BGA assigns to each game.
     The url below should be accessible unauthenticated (test with curl).
     """
+    oneweek = 604800
+    if time.time() - oneweek > os.path.getmtime("bga_game_list.json"):
+        with open("bga_game_list.json", "r") as f:
+            logger.debug("Loading game list from cache because the game list has been checked in the last week.")
+            return json.loads(f.read()), ""
     url = 'https://boardgamearena.com/gamelist?section=all'
-    async with aiohttp.ClientSession() as session:          
+    async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status >= 400:
                 # If there's a problem with getting the most accurate list, use cached version
@@ -32,11 +39,11 @@ async def get_game_list():
             for r in results:
                 games[r[1]] = int(r[0])
             with open("bga_game_list.json", "w") as f:
-                f.write(json.dumps(games))
+                f.write(json.dumps(games, indent=2))
             return games, ""
 
 
-class BGAAccount: 
+class BGAAccount:
     """Account user/pass and methods to login/create games with it."""
     # Select numbers for changing options in a game
     def __init__(self):
@@ -49,7 +56,7 @@ class BGAAccount:
         async with self.session.get(url) as response:
             resp_text = await response.text()
             if resp_text[0] in ['{', '[']:  # If it's a json
-                print("RET TEXT: " + resp_text)
+                print(f"Fetched {url}. Resp: " + resp_text)
             return resp_text
 
     async def post(self, url, params):
@@ -80,7 +87,6 @@ class BGAAccount:
         }
         url += "?" + urllib.parse.urlencode(params)
         await self.fetch(url)
-        return await self.verify_privileged()
 
     async def quit_table(self):
         """ Quit the table if the player is currently at one"""
@@ -106,7 +112,6 @@ class BGAAccount:
         Partial game names are ok, like race for raceforthegalaxy.
         Returns (table id (int), error string (str))"""
         # Try to close any logged-in session gracefully
-        atexit.register(self.logout)
         lower_game_name = re.sub(r"[^a-z0-9]", "", game_name_part.lower())
         await self.quit_table()
         games, err_msg = await get_game_list()
@@ -177,9 +182,9 @@ class BGAAccount:
         # Set defaults if they're not present
         defaults = {
             "mode": "normal",
-            "speed": "normal",
+            "speed": "1/day",
             "presentation": "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥",
-            "minrep": "75",
+            "minrep": "0",
         }
         # options will overwrite defaults if they are there
         defaults.update(options)

@@ -9,6 +9,7 @@ import random
 import aiohttp
 
 logger = logging.getLogger(__name__)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger('aiohttp').setLevel(logging.WARN)
 
 class TFMPlayer:
@@ -20,9 +21,9 @@ class TFMPlayer:
 
 class TFMGame:
     """Account user/pass and methods to login/create games with it."""
-    def __init__(self):
+    def __init__(self, server):
         self.session = aiohttp.ClientSession()
-        self.base_url = "https://tfm.msydevops.fr"
+        self.base_url = server
         self.table_id = 0
         self.created_player_list = []
 
@@ -42,30 +43,34 @@ class TFMGame:
             """If it's in global_opts, override player opts. If it's in all player opts, then choose it."""
             return letter in gl or all([letter in p.options for p in pl])
         params = {
-          "players": [],
-          # Expansions
-          "corporateEra": choose_option(global_opts, players, "e"),
-          "prelude": choose_option(global_opts, players, "p"),
-          "venusNext": choose_option(global_opts, players, "v"),
-          "includeVenusMA": choose_option(global_opts, players, "v"),
-          "colonies": choose_option(global_opts, players, "c"),
-          "turmoil": choose_option(global_opts, players, "t"),
-          "promoCardsOption": choose_option(global_opts, players, "o"),
+            "players": [],
+            # Expansions
+            "corporateEra": choose_option(global_opts, players, "e"),
+            "communityCardsOption": choose_option(global_opts, players, "g"),
+            "prelude": choose_option(global_opts, players, "p"),
+            "venusNext": choose_option(global_opts, players, "v"),
+            "includeVenusMA": choose_option(global_opts, players, "v"),
+            "colonies": choose_option(global_opts, players, "c"),
+            "turmoil": choose_option(global_opts, players, "t"),
+            "promoCardsOption": choose_option(global_opts, players, "o"),
 
-          # Options
-          "undoOption": choose_option(global_opts, players, "u"),
-          "randomMA": choose_option(global_opts, players, "r"),
-          "draftVariant": choose_option(global_opts, players, "d"),
-          "showOtherPlayersVP": choose_option(global_opts, players, "s"),
-          "solarPhaseOption": choose_option(global_opts, players, "w"),
-          "soloTR": choose_option(global_opts, players, "l"),
-          "initialDraft": choose_option(global_opts, players, "i"),
-          "shuffleMapOption": choose_option(global_opts, players, "m"),
+            # Options
+            "fastModeOption": choose_option(global_opts, players, "f"),
+            "undoOption": choose_option(global_opts, players, "u"),
+            "randomMA": choose_option(global_opts, players, "r"),
+            "removeNegativeGlobalEventsOption": False,  # This isn't working yet
+            "draftVariant": choose_option(global_opts, players, "d"),
+            "showOtherPlayersVP": choose_option(global_opts, players, "s"),
+            "solarPhaseOption": choose_option(global_opts, players, "w"),
+            "soloTR": choose_option(global_opts, players, "l"),
+            "initialDraft": choose_option(global_opts, players, "i"),
+            "shuffleMapOption": choose_option(global_opts, players, "m"),
         }
         special_params = {
-          "customCorporationsList": [],
-          "customColoniesList": [],
-          "seed": random.random(),
+            "customCorporationsList": [],
+            "customColoniesList": [],
+            "cardsBlackList": [],
+            "seed": random.random(),
         }
         # default to 2 corporations
         special_params["startingCorporations"] = "2"
@@ -117,7 +122,7 @@ class TFMGame:
                 "beginner": False,
                 "handicap": 0,
                 "first": i==0
-              }
+            }
             params["players"].append(new_player)
         logger.debug("Param generation completed:" + str(params))
         return params
@@ -144,7 +149,6 @@ class TFMGame:
     async def create_table_url(self, table_id):
         """Given the table id, make the table url."""
         return self.base_url + "/game?id=" + str(table_id)
-
     async def close_connection(self):
         """Close the connection. aiohttp complains otherwise."""
         await self.session.close()

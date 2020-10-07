@@ -8,6 +8,8 @@ import os
 import re
 import shlex
 import traceback
+from urllib.parse import urlparse
+
 
 import discord
 
@@ -59,8 +61,9 @@ async def on_message(message):
             await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
     # Integration with bosspiles bot. If this bot sees `@user1 :vs: @user2`,
     # Do not assume that calling user is a player in the game
-    # For now, only bosspile bot posts will be read
+    # For now, only bosspile bot posts will be read and only if they have new matches
     elif ":crossed_swords:" in message.content and message.author.id == 713362507770626149:
+        await message.channel.send("This should automatically create a game. If something weird happens, tell @Pocc.")
         num_users = 0
         all_logins = get_all_logins()
         for discord_id in all_logins:
@@ -68,24 +71,28 @@ async def on_message(message):
                 num_users += 1
         logger.debug(f"Found {str(num_users)} users with accounts.")
         # Leading : because a discord emoji will come before it.
-        matches = re.findall(r": ([^:\n]+) :vs: ([^:\n]+)", message.content)
+        matches = re.findall(r":crossed_swords: ([^:\n]+) :vs: ([^:\n]+)", message.content)
         for match in matches:
+            p1_discord_id = -1
+            p2_discord_id = -1
+            p1_has_account = False
+            p2_has_account = False
             logger.debug(f"Found potential match {str(match)}")
             p1_text, p2_text = match[0].strip(), match[1].strip()
             game_name = message.channel.name.replace('bosspile', '').replace('-', '')
+            # if it's a bga name,
             if p1_text.startswith("<@"):
                 p1_discord_id = re.match(r"<@!?(\d+)", p1_text)[1]
-            else:  # assume it's a bga name
-                p1_discord_id = get_discord_id(p1_text, message)
+                p1_has_account = p1_discord_id in all_logins and len(all_logins[p1_discord_id]["password"])
             if p2_text.startswith("<@"):
                 p2_discord_id = re.match(r"<@!?(\d+)", p2_text)[1]
-            else:  # assume it's a bga name
-                p2_discord_id = get_discord_id(p2_text, message)
+                p2_has_account = p2_discord_id in all_logins and len(all_logins[p2_discord_id]["password"])
             logger.debug(f"Found discord ids: {p1_discord_id} {p2_discord_id}")
-            if p1_discord_id != -1:
-                await setup_bga_game(message, p1_discord_id, game_name, [p1_text, p2_text], {"speed": "slow"})
-            elif p2_discord_id != -1:
-                await setup_bga_game(message, p2_discord_id, game_name, [p1_text, p2_text], {"speed": "slow"})
+            # If p1/p2_text are discord tags or bga names, setup should properly convert either
+            if p1_discord_id != -1 and p1_has_account:
+                await setup_bga_game(message, p1_discord_id, game_name, [p1_text, p2_text], {"speed": "1/day"})
+            elif p2_discord_id != -1 and p2_has_account:
+                await setup_bga_game(message, p2_discord_id, game_name, [p1_text, p2_text], {"speed": "1/day"})
 
 async def init_bga_game(message):
     args = shlex.split(message.content)
@@ -96,7 +103,7 @@ async def init_bga_game(message):
     command = args[1]
     if command == "list":
         await bga_list_games(message)
-    elif command == "setup":  
+    elif command == "setup":
         if len(args) != 4:
             await message.channel.send("Setup requires a BGA username and "
                                        "password. Run `!bga` to see setup examples.")
@@ -148,15 +155,19 @@ async def init_tfm_game(message):
     See the help message for more info."""
     args = shlex.split(message.content)
     global_opts = ""
+    server = "https://mars.ross.gg"  # default but can be changed by adding a url to the command
     players = []
     if len(args) == 1:
         await message.author.send("No command entered! Showing the help for !tfm.")
         await send_tfm_help(message)
         return
-    if args[1][0] == "+":
-        global_opts = args[1][1:]
-        args.remove(args[1])
     for arg in args[1:]:
+        if arg[0] == "+":
+            global_opts = arg[1:]
+            continue
+        if is_url(arg):
+            server = arg
+            continue
         logger.debug(f"Parsing arg `{arg}`")
         all_args = arg.split(';')
         if len(all_args) == 2:
@@ -165,24 +176,28 @@ async def init_tfm_game(message):
         elif len(all_args) == 3:
             name, colors, opts = all_args
         else:
-            await message.author.send("Too many semicolons in player string (expected 2-3)!")
+            await message.author.send(f"Too many semicolons in player string {arg} (expected 2-3)!")
             return
         if not re.match("[rygbpk]+", colors):
             await message.author.send(f"Color in {colors} for player {name} is not valid.")
             return
-        if not re.match("[cpvchetourdbswalim23456]*", opts):
+        if not re.match("['23456abcdefghilmoprstuvw']*", opts):
             await message.author.send(f"Opt in {opts} for player {name} is not valid.")
             return
         new_player = TFMPlayer(name, colors, opts)
         players.append(new_player)
-    game = TFMGame()
+    game = TFMGame(server)
     options = await game.generate_shared_params(global_opts, players)
     data = await game.create_table(options)
     player_lines = []
     i = 1
     for player in data:
         color_circle = f":{player['color']}_circle:"
-        player_line = f"**{i} {color_circle} {player['name']}**\t [Link to Game]({player['player_link']})"
+        player_str = player['name']
+        discord_id = get_discord_id(player_str, message)
+        if discord_id != -1:
+            player_str = f"<@!{discord_id}>"
+        player_line = f"**{i} {color_circle}** {player_str}\t [Link to Game]({player['player_link']})"
         player_lines.append(player_line)
         i += 1
     author_line = ""  # It's not as important to have a game creator - the bot is the game creator
@@ -190,10 +205,27 @@ async def init_tfm_game(message):
     options_str = ""
     option_names = list(options.keys())
     option_names.sort()
+    # The following is a kludge to create a table inside an embed with ~ tabs
+    # Use discord number to create a number like :three:
+    numbers = {"2": "two", "3": "three", "4": "four", "5": "five", "6": "six"}
+    number = numbers[str(options['startingCorporations'])]
+    truncated_opts_str = "*Complete options sent to game creator*\n\n　:{}: `{:<20}`".format(number, "Corporations")
+    expansions = ["colonies", "communityCardsOption", "corporateEra", "prelude", "promoCardsOption",  "turmoil", "venusNext"]
+    ith = 1
+    for expn in expansions:
+        short_expn = expn.replace("CardsOption", "")
+        if options[expn]:
+            truncated_opts_str += "　:white_check_mark:`{:<20}`".format(short_expn)
+        else:
+            truncated_opts_str += "　:x:`{:<20}`".format(short_expn)
+        ith += 1
+        if ith % 2 == 0:
+            truncated_opts_str += '\n' # should be a 2row 3col table
     for key in option_names:
         if key != "players":
             options_str += f"{key}   =   {options[key]}\n"
-    await send_table_embed(message, "Terraforming Mars", "In the 2400s, mankind begins to terraform the planet Mars", author_line, player_list_str, "Options", options_str)
+    await send_table_embed(message, "Terraforming Mars", f"Running on server {server}", author_line, player_list_str, "Options", truncated_opts_str)
+    await message.author.send(f"**Created game with these options**\n\n```{options_str}```")
     await game.close_connection()
 
 
@@ -204,6 +236,11 @@ Use the following options to create a Terraforming Mars game.
 The options below correspond to options in the game. Global options,
 specified with a starting `+`, override player options. If all players have
 shared preferences for an option, then it will be added.
+
+The default tfm server is https://mars.ross.gg, but you can add any valid url 
+to the command and it will use that server instead, such as 
+* terraforming-mars.herokuapp.com 
+* tfm.msydevops.fr
 
 Format your command like
 `!tfm +<global opts> <p1>;<p1 colors>;<p1 opts> <p2>;<p2 colors>;<p2 opts> ...`
@@ -227,11 +264,12 @@ __**Board**__
 Board options start with `b`: `bt` for tharsis, `bh` for hellas, `be` for elysium, `br` for random
 
 __**Expansions**__
-`e` **corporateEra** : Extra corporations to use. `https://boardgamegeek.com/boardgame/241497/terraforming-mars-bgg-user-created-corporation-pac`
-`p` **prelude** : Starting bonuses to speed up the game. `https://boardgamegeek.com/boardgameexpansion/247030/terraforming-mars-prelude`
-`v` **venusNext**/includeVenusMA : 4th TR meter with a set of extra venus cards. `https://boardgamegeek.com/boardgameexpansion/231965/terraforming-mars-venus-next`
-`c` **colonies** : Ganymede-like extra colonies to settle. `https://boardgamegeek.com/boardgameexpansion/255681/terraforming-mars-colonies`
-`t` **turmoil** : Makes the game much longer. `https://boardgamegeek.com/boardgameexpansion/273473/terraforming-mars-turmoil`
+`e` **corporateEra** : Extra corporations to use. <https://boardgamegeek.com/boardgame/241497/terraforming-mars-bgg-user-created-corporation-pac>
+`p` **prelude** : Starting bonuses to speed up the game. <https://boardgamegeek.com/boardgameexpansion/247030/terraforming-mars-prelude>
+`v` **venusNext**/includeVenusMA : 4th TR meter with a set of extra venus cards. <https://boardgamegeek.com/boardgameexpansion/231965/terraforming-mars-venus-next>
+`c` **colonies** : Ganymede-like extra colonies to settle. <https://boardgamegeek.com/boardgameexpansion/255681/terraforming-mars-colonies>
+`t` **turmoil** : Makes the game much longer. <https://boardgamegeek.com/boardgameexpansion/273473/terraforming-mars-turmoil>
+`f` **communityCardsOption** : Fanmade corps and preludes <https://docs.google.com/document/u/1/d/e/2PACX-1vQCccn7kj-MEliV0bBGzkb-kxJvCBk0T9CuIMs6eWjhUIBSinemTaKjKK1ISI4tq2wzJX7wQvoBZcQe/pub>
 
 __**Promos**__
 `o` **promoCardsOption** : 7 extra sets of cards (see link above)
@@ -309,7 +347,7 @@ async def bga_list_games(message):
     game_data, err_msg = await get_game_list()
     if len(err_msg) > 0:
         await message.channel.send(err_msg)
-        return         
+        return
     game_list = list(game_data.keys())
     tr_games = [g[:22] for g in game_list]
     retmsg = ""
@@ -331,6 +369,7 @@ async def setup_bga_account(message, bga_username, bga_password):
     account = BGAAccount()
     logged_in = await account.login(bga_username, bga_password)
     player_id = await account.get_player_id(bga_username)
+    await account.logout()
     await account.close_connection()
     if logged_in:
         save_data(discord_id, player_id, bga_username, bga_password)
@@ -388,6 +427,7 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
     table_msg = await message.channel.send("Creating table...")
     await create_bga_game(message, account, game, players, p1_discord_id, options)
     await table_msg.delete()
+    await account.logout()  # Probably not necessary
     await account.close_connection()
 
 
@@ -514,6 +554,7 @@ async def get_tables_by_players(players, message):
     bga_ids = []
     tables = {}
     bga_mediator = BGAAccount()
+    sent_messages = []
     for player in players:
         if player.startswith('<@'):
             await message.channel.send("Not yet set up to read discord tags.")
@@ -526,26 +567,30 @@ async def get_tables_by_players(players, message):
             return
         bga_ids.append(bga_id)
         player_tables = await bga_mediator.get_tables(bga_id)
+        found_msg = await message.channel.send(f"Found {str(len(player_tables))} tables for {player}")
+        sent_messages += [found_msg]
         tables.update(player_tables)
     def normalize_name(game_name):
-        return re.sub("[^a-z]+", "", game_name.lower())
+        return re.sub("[^a-z0-7]+", "", game_name.lower())
     bga_games, err_msg = await get_game_list()
     if len(err_msg) > 0:
         await message.channel.send(err_msg)
-        return   
+        return
     normalized_bga_games = [normalize_name(game) for game in bga_games]
     for table_id in tables:
         table = tables[table_id]
         if set(bga_ids).issubset(table["player_display"]):
+            sent_messages += [await message.channel.send("Getting table information...")]
             logger.debug(f"Checking table {table_id} for bga_ids {str(bga_ids)} in table {str(table)}")
-            game_name = table["game_name"]
+            # Check for game name by id as it may differ from name (i.e. 7 vs 'seven')
+            game_name = [game for game in bga_games if table["game_id"] == str(bga_games[game])][0]
             if normalize_name(game_name) not in normalized_bga_games:
                 await bga_mediator.close_connection()
                 await message.channel.send(f"{game_name} is not a BGA game.")
                 return
             player_dicts = table["players"]
             print('pd', player_dicts)
-            # If a game has not started, but it is scheduled, it will None here.
+            # If a game has not started, but it is scheduled, it will be None here.
             if table["gamestart"]:
                 gamestart = table["gamestart"]
             else:
@@ -562,6 +607,8 @@ async def get_tables_by_players(players, message):
                     p_name = '**' + p_name + ' to play**'
                 p_names.append(p_name)
             ret_msg += f"__{game_name}__\t\t[{', '.join(p_names)}]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\t\t<{table_url}>\n"
+    for sent_message in sent_messages:  # Only delete all status messages once we're done
+        await sent_message.delete()
     if len(ret_msg) == 0:
         ret_msg = "No tables found between players " + str(players)
     await bga_mediator.close_connection()
@@ -681,7 +728,7 @@ The default is marked with a *
     training
 **speed**: *How fast to play. /day is moves per day. nolimit means no time limit.*
     fast
-    medium *
+    medium
     slow
     24/day
     12/day
@@ -689,14 +736,14 @@ The default is marked with a *
     4/day
     3/day
     2/day
-    1/day
+    1/day *
     1/2days
     nolimit
 **minrep**: *The minimum reputation required. Reputation is how often you quit midgame.*
-    0
+    0 *
     50
     65
-    75 *
+    75
     85
 **presentation**: *The game's description shown beneath it in the game list.*
     <any string with double quotes>
@@ -733,6 +780,15 @@ _You can also specify options/values like 200:12 if you know what they are by lo
 """
     options_text = options_text.replace(4*" ", "\t")
     await message.channel.send(options_text)
+
+
+# Via https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not
+def is_url(url):
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
 
 
 client.run(TOKEN)
