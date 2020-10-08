@@ -98,7 +98,7 @@ async def init_bga_game(message):
     args = shlex.split(message.content)
     if len(args) == 1:
         await message.channel.send("Sending BGA help your way.")
-        await send_help(message)
+        await send_help(message, "bga_help")
         return
     command = args[1]
     if command == "list":
@@ -144,11 +144,11 @@ async def init_bga_game(message):
     elif command == "friend":
         await add_friends(args[2:], message)
     elif command == "options":
-        await send_options(message)
+        await send_help(message, "bga_options")
     else:
         await message.channel.send(f"You entered invalid command `{command}`. "
                                   f"Valid commands are list, link, setup, and make.")
-        await send_help(message)
+        await send_help(message, "bga_help")
 
 async def init_tfm_game(message):
     """Format of message is !tfm +cpv player1;bgy;urd.
@@ -159,7 +159,7 @@ async def init_tfm_game(message):
     players = []
     if len(args) == 1:
         await message.author.send("No command entered! Showing the help for !tfm.")
-        await send_tfm_help(message)
+        await send_help(message, "tfm_help")
         return
     for arg in args[1:]:
         if arg[0] == "+":
@@ -227,106 +227,6 @@ async def init_tfm_game(message):
     await send_table_embed(message, "Terraforming Mars", f"Running on server {server}", author_line, player_list_str, "Options", truncated_opts_str)
     await message.author.send(f"**Created game with these options**\n\n```{options_str}```")
     await game.close_connection()
-
-
-async def send_tfm_help(message):
-    help_msg = """__**Terraforming Mars Table Creation**__
-
-Use the following options to create a Terraforming Mars game.
-The options below correspond to options in the game. Global options,
-specified with a starting `+`, override player options. If all players have
-shared preferences for an option, then it will be added.
-
-The default tfm server is https://mars.ross.gg, but you can add any valid url 
-to the command and it will use that server instead, such as 
-* terraforming-mars.herokuapp.com 
-* tfm.msydevops.fr
-
-Format your command like
-`!tfm +<global opts> <p1>;<p1 colors>;<p1 opts> <p2>;<p2 colors>;<p2 opts> ...`
-
-As an example:
-`!tfm +a3brewds Pocc;pbkg;covept Seth;r;`
-
-Here, Seth wants to play as red (r) and doesn't care about game options.
-Pocc wants to play as color purple, blue, black, green in that order. And then expansions `cvpte` with o for promos.
-
-The mapping between letters and options is below.
-For an explanation of options, see `https://github.com/bafolts/terraforming-mars/wiki/Variants`
-
-__=> **Options**__
-
-__=> **Colors**__
-Colors preferences are (**r**)ed, (**y**)ellow, (**g**)reen, (**b**)lue, (**p**)urple, blac(**k**)
-Use the first letter of each color to represent it or **k** for black
-
-__**Board**__
-Board options start with `b`: `bt` for tharsis, `bh` for hellas, `be` for elysium, `br` for random
-
-__**Expansions**__
-`e` **corporateEra** : Extra corporations to use. <https://boardgamegeek.com/boardgame/241497/terraforming-mars-bgg-user-created-corporation-pac>
-`p` **prelude** : Starting bonuses to speed up the game. <https://boardgamegeek.com/boardgameexpansion/247030/terraforming-mars-prelude>
-`v` **venusNext**/includeVenusMA : 4th TR meter with a set of extra venus cards. <https://boardgamegeek.com/boardgameexpansion/231965/terraforming-mars-venus-next>
-`c` **colonies** : Ganymede-like extra colonies to settle. <https://boardgamegeek.com/boardgameexpansion/255681/terraforming-mars-colonies>
-`t` **turmoil** : Makes the game much longer. <https://boardgamegeek.com/boardgameexpansion/273473/terraforming-mars-turmoil>
-`f` **communityCardsOption** : Fanmade corps and preludes <https://docs.google.com/document/u/1/d/e/2PACX-1vQCccn7kj-MEliV0bBGzkb-kxJvCBk0T9CuIMs6eWjhUIBSinemTaKjKK1ISI4tq2wzJX7wQvoBZcQe/pub>
-
-__**Promos**__
-`o` **promoCardsOption** : 7 extra sets of cards (see link above)
-"""
-    help_msg2 = """
-
-__**Options**__
-`u` **undoOption**
-> Enable players to undo their first move of each turn (requires refresh).
-`r` **randomMA** (Random Milestones and Awards)
-> Picks 5 milestones and awards at random (6 if playing with Venus Next expansion).
-`d` **draftVariant**
-> During the Research phase, players select cards one at a time and pass the remaining cards clockwise (during
-> even generations) or anti-clockwise (during odd generations), before deciding how many cards to purchase.
-`s` **showOtherPlayersVP**
-> Show other players VPs, including from milestones, awards, and cards. This is dynamically updated.
-`w` **solarPhaseOption** (World Government Terraforming)
-> At the end of each generation, the active player raises a global parameter of his/her choice, without gaining any TR or bonuses from this action.
-`a` **startingCorporations** (followed by the number)
-> Set the number of starting corporations dealt to each player.
-`l` **soloTR**
-> Win by achieving a Terraform Rating of 63 by game end, instead of the default goal of completing all global parameters.
-`i` **initialDraft**
-> Adds a draft mechanic for starting cards. Choose 1 project cards among 5 and pass the rest to the player on your left.
-> Then 1 project cards among 4 and pass the rest to the player on your left. Same process with another 5 project cards
-> but pass to the player on your right. If prelude option is activated, choose 1 prelude card among 4 and pass the rest
-> to the player on your left. Then 1 prelude card among 3 and pass the rest to the player on your left. Repeat.*
-> Random Milestones and Awards
-`m` **shuffleMapOption**
-> Shuffles all available tiles to generate a dynamic board. Noctis City and volcanic areas will always remain as land areas.
-"""
-    unimplemented = """
-
-__**Unimplemented**__ (bug Ross if this bugs you)
-
-Community Corporations
-> Adds some fan-made corporations to the game.
-
-Beginner Corporations
-> Start with 42 MC and immediately receive 10 cards in hand, without having to pay for any cards during the initial Research phase.
-> Shuffle player order and randomly pick the first player.
-
-TR Boost
-> Give player(s) up to 10 additional starting TR as a game handicap.
-
-Fast Mode
-> Cannot end turn after one action (either play 2 actions or pass for the current generation).
-
-Remove Negative Global Events
-> Exclude all global events that decrease player resources, production or global parameters.
-
-Set Predefined Game
-> Replay a previous game by selecting the game seed.
-"""
-    await message.channel.send(help_msg)
-    await message.channel.send(help_msg2)
-    await message.channel.send(unimplemented)
 
 
 async def add_friends(friends, message):
@@ -632,154 +532,29 @@ async def send_table_embed(message, game, desc, author, players, second_title, s
     await message.channel.send(embed=retmsg)
 
 
-async def send_help(message):
-    """Send the user a help message"""
-    help_text1 = """BGA is a bot to help you set up board game arena games in discord.
-These commands will work in any channel @BGA is on and also as direct messages to @BGA.
-
-__**Available commands**__
-
-    **list**
-        List all of the 100+ games on Board Game Arena
-
-    **setup bga_username bga_password**
-        setup is used to save your BGA account details.
-        This bot will delete this message after you send it.
-        If either username or password has spaces, use quotes.
-
-    **link @discord_tag bga_username**
-        NOTE: If you run setup, linking accounts is done automatically.
-
-        link is used to connect someone's discord account to their
-        BGA account if you already know both. They will not have
-        to run setup, but they will not be able to host games.
-
-    **make game user1 user2...**
-        make is used to create games on BGA using the account details from setup.
-        The game is required, but the number of other users can be >= 0.
-        Each user can be a discord_tag if it has an @ in front of it; otherwise, it
-        will be treated as a board game arena account name.
-
-    **tables user1 user2...**
-        tables shows the tables that all specified users are playing at.
-        To see just the games you are playing at use `tables <your bga username>`.
-
-    **options**
-        Print the available options that can be specified with make.
-        Board game arena options must be specified like `speed:slow`.
-"""
-    help_text2 = """
-__**Examples**__
-
-    **setup**
-        Example setup of account for Alice (`Pixlane` on BGA):
-
-        `!bga setup "Pixlane" "MySuperSecretPassword!"`
-
-        On success, output should be:
-
-        `Account Pixlane setup successfully!`
-
-        If you send this message in a public channel, this bot will read and immediately delete it.
-
-     **Link**
-        Example setup of account by Alice for Bob (`D Fang` on BGA, @Bob on discord):
-
-        `!bga link @Bob "D Fang"`
-
-        On success, output should be:
-
-        `Discord @Bob successfully linked to BGA D Fang.`
-
-    **make**
-        1. For example, Alice (`Pixlane` on BGA) wants to create a game of Race for the Galaxy
-        and wants to invite Bob (`D Fang` on BGA) and Charlie (`_Evanselia_` on Discord),
-        using their BGA usernames. To do this, she would type
-
-        `!bga make "Race for the Galaxy" "D Fang" @Evanselia`
-
-        Note: Alice does not need to invite herself to her own game, so she does not add her own name.
-
-        2. Let's say that Alice wants to type their discord names instead. It would look like
-
-        `!bga make "Race for the Galaxy" @Bob @Charlie`
-
-        Note: Everyone listed needs to have run `!bga setup <bga user> <bga pass>` for this to work.
-        On success, output for both options should look like:
-
-        `@Alice invited @Bob (D Fang), @Charlie (_Evanselia_): https://boardgamearena.com/table?table=88710056`
-"""
-    help_text1 = help_text1.replace(4*" ", "\t")
-    help_text2 = help_text2.replace(4*" ", "\t")
-    await message.author.send(help_text1)
-    await message.author.send(help_text2)
-
-
-async def send_options(message):
-    """Send the user a list of supported bga options."""
-    options_text = """Options can be specified only with make and with a colon like `speed:slow`.
-
-__**Available options**__
-
-The default is marked with a *
-
-**mode**: *The type of game*
-    normal
-    training
-**speed**: *How fast to play. /day is moves per day. nolimit means no time limit.*
-    fast
-    medium
-    slow
-    24/day
-    12/day
-    8/day
-    4/day
-    3/day
-    2/day
-    1/day *
-    1/2days
-    nolimit
-**minrep**: *The minimum reputation required. Reputation is how often you quit midgame.*
-    0 *
-    50
-    65
-    75
-    85
-**presentation**: *The game's description shown beneath it in the game list.*
-    <any string with double quotes>
-**players**: *The minimum and maximum number of players a game can have. The min/max numbers can be the same.*
-    <min players>-<max players> like `2-5`
-**minlevel**: The minimum or maximum level of player to play against. You must be at least your min level to choose it.
-    `beginner *  (0)`
-    `apprentice  (1-99)`
-    `average     (100-199)`
-    `good        (200-299)`
-    `strong      (300-499)`
-    `export      (500-600)`
-    `master      (600+)`
-
-    ex: `minlevel:apprentice`
-**maxlevel**: The maximum level of player to play against. You must be at least your max level to choose it.
-    `beginner    (0)`
-    `apprentice  (1-99)`
-    `average     (100-199)`
-    `good        (200-299)`
-    `strong      (300-499)`
-    `export      (500-600)`
-    `master *    (600+)`
-
-    ex: `maxlevel:expert`
-**restrictgroup**: A group name in double quotes to restrict the game to. You should be able to find the group here if it exists: boardgamearena.com/community. You can only use this option if you are a member of that community.
-    Default is no group restriction
-    Ex: restrictgroup:"BGA Discord Bosspiles" will limit a game to this group
-    Ex: "My friends" is a valid group for everyone.
-**lang**: ISO639-1 language code like en, es, fr, de. To find yours: en.wikipedia.org/wiki/List_of_ISO_639-1_codes
-    Default language is none
-
-_You can also specify options/values like 200:12 if you know what they are by looking at the HTML._
-"""
-    options_text = options_text.replace(4*" ", "\t")
-    await message.channel.send(options_text)
+async def send_help(message, help_type):
+    """Send the user a help message from a file"""
+    filename = help_type + "_msg.md"
+    with open(filename) as f:
+        text = f.read()
+    remainder = text.replace(4*" ", "\t")
+    # Loop over text and send message parts from the remainder until remainder is no more
+    while len(remainder) > 0:
+        chars_per_msg = 2000
+        if len(remainder) < chars_per_msg:
+            chars_per_msg = len(remainder)
+        msg_part = remainder[:chars_per_msg]
+        remainder = remainder[chars_per_msg:]
+        # Only break on double newline (new paragraph) where there is a 2nd message
+        if len(remainder) > 0:
+            while msg_part[-1] != "\n" and remainder[0] != "\n":
+                remainder = msg_part[-1] + remainder
+                msg_part = msg_part[:-1]
+            # Discord will delete whitespace before a message
+            # so preserve that whitespace by inserting a character
+            if remainder[0] == "\t":  
+                remainder = ".   " + remainder[1:]
+        await message.author.send(msg_part)
 
 
 # Via https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not

@@ -2,5 +2,6 @@
 *.swp
 *cache*/
 .idea/
+.vscode*
 errs
 pid
