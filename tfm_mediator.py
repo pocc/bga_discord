@@ -58,7 +58,7 @@ class TFMGame:
             "fastModeOption": choose_option(global_opts, players, "f"),
             "undoOption": choose_option(global_opts, players, "u"),
             "randomMA": choose_option(global_opts, players, "r"),
-            "removeNegativeGlobalEventsOption": False,  # This isn't working yet
+            "removeNegativeGlobalEventsOption": choose_option(global_opts, players, "n"),  # Will only work if turmoil is also selected
             "draftVariant": choose_option(global_opts, players, "d"),
             "showOtherPlayersVP": choose_option(global_opts, players, "s"),
             "solarPhaseOption": choose_option(global_opts, players, "w"),

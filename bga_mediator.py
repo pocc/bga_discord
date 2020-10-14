@@ -38,10 +38,18 @@ async def get_game_list():
             games = {}
             for r in results:
                 games[r[1]] = int(r[0])
-            with open("bga_game_list.json", "w") as f:
-                f.write(json.dumps(games, indent=2))
+            # We need to read AND update the existing json because the BGA game list doesn't
+            # include "games in review" that may be saved in the json.
+            update_games_cache(games)
             return games, ""
 
+def update_games_cache(games):
+    with open("bga_game_list.json", "r") as f:
+        file_text = f.read()
+        file_games = json.loads(file_text)
+        games.update(file_games)
+    with open("bga_game_list.json", "w") as f:            
+        f.write(json.dumps(games, indent=2))
 
 class BGAAccount:
     """Account user/pass and methods to login/create games with it."""

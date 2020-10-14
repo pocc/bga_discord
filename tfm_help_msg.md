@@ -66,6 +66,8 @@ __**Options**__
 > Random Milestones and Awards
 `m` **shuffleMapOption**
 > Shuffles all available tiles to generate a dynamic board. Noctis City and volcanic areas will always remain as land areas.
+`n` **Remove Negative Global Events**
+> Exclude all global events that decrease player resources, production, or global parameters. Requires Turmoil to be selected.
 
 __**Unimplemented**__ (bug Ross if this bugs you)
 
@@ -75,9 +77,6 @@ Beginner Corporations
 
 TR Boost
 > Give player(s) up to 10 additional starting TR as a game handicap.
-
-Remove Negative Global Events
-> Exclude all global events that decrease player resources, production or global parameters.
 
 Set Predefined Game
 > Replay a previous game by selecting the game seed.
