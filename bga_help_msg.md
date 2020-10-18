@@ -1,8 +1,6 @@
 BGA is a bot to help you set up board game arena games in discord.
 These commands will work in any channel @BGA is on and also as direct messages to @BGA.
 
----
-
 # __**Available commands**__
 
 ## **list**
@@ -49,7 +47,7 @@ These commands will work in any channel @BGA is on and also as direct messages t
 
     If you send this message in a public channel, this bot will read and immediately delete it.
 
-    **Link**
+## **Link**
     Example setup of account by Alice for Bob (`D Fang` on BGA, @Bob on discord):
 
     `!bga link @Bob "D Fang"`
