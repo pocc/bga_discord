@@ -1,9 +1,13 @@
 # BGA Discord 
 
-This is a bot to help you set up board game arena (BGA) and terraforming mars (TFM) games in discord.
-These commands will work in any channel @BGA is on and also as direct messages to @BGA.
+![](https://i.imgur.com/KgvqoU0.png)
 
-BGA commands start with `!bga` and TFM games start with `!tfm`
+This is a bot to help you set up [board game arena](https://boardgamearena.com) (BGA) 
+and [terraforming mars](https://github.com/bafolts/terraforming-mars) (TFM) games in discord.
+
+You can add the bot to your server by [giving it access](https://discord.com/api/oauth2/authorize?client_id=711844812424216598&permissions=79872&scope=bot).
+
+These commands will work in any channel @BGA is on and also as direct messages to @BGA.
 
 ## Server Bot Setup
 
@@ -40,6 +44,8 @@ make run
 
 
 ## Available commands
+
+BGA commands start with `!bga` and TFM games start with `!tfm`
 
 Check one of the help documents for more information about each subcommand:
 
