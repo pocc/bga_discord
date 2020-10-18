@@ -64,7 +64,7 @@ class BGAAccount:
         async with self.session.get(url) as response:
             resp_text = await response.text()
             if resp_text[0] in ['{', '[']:  # If it's a json
-                print(f"Fetched {url}. Resp: " + resp_text)
+                print(f"Fetched {url}. Resp: " + resp_text[:80])
             return resp_text
 
     async def post(self, url, params):
@@ -115,6 +115,15 @@ class BGAAccount:
             quit_url += "?" + urllib.parse.urlencode(params)
             await self.fetch(quit_url)
 
+    async def quit_playing_with_friends(self):
+        """ There is a BGA feature called "playing with friends". Remove friends from the session"""
+        quit_url = self.base_url + "/group/group/removeAllFromGameSession.html"
+        params = {
+            "dojo.preventCache": str(int(time.time()))
+        }
+        quit_url += "?" + urllib.parse.urlencode(params)
+        await self.fetch(quit_url)
+
     async def create_table(self, game_name_part):
         """Create a table and return its url. 201,0 is to set to normal mode.
         Partial game names are ok, like race for raceforthegalaxy.
@@ -122,6 +131,7 @@ class BGAAccount:
         # Try to close any logged-in session gracefully
         lower_game_name = re.sub(r"[^a-z0-9]", "", game_name_part.lower())
         await self.quit_table()
+        await self.quit_playing_with_friends()
         games, err_msg = await get_game_list()
         if len(err_msg) > 0:
             return -1, err_msg

@@ -1,5 +1,4 @@
 """Bot to create games on discord."""
-import asyncio
 from cryptography.fernet import Fernet
 import datetime
 import json
@@ -59,24 +58,27 @@ async def on_message(message):
                 await init_tfm_game(message)
         except Exception as e:
             logger.error("Encountered error:" + str(e) + "\n" + str(traceback.format_exc()))
-            await message.channel.send("Tell <@!234561564697559041> to fix his bot.")
+            await message.channel.send("Tell <@!234561564697559041> to fix his bga bot.")
     # Integration with bosspiles bot. If this bot sees `@user1 :vs: @user2`,
     # Do not assume that calling user is a player in the game
     # For now, only bosspile bot posts will be read and only if they have new matches
-    elif message.author.id == 713362507770626149 and (":crossed_swords:" in message.content or ":vs:" in message.content):
-        game_name = message.channel.name.replace('bosspile', '').replace('-', '')
+    elif message.author.id == 713362507770626149 and ":vs:" in message.content:
+        game_name = message.channel.name.replace('bosspile', '').replace('ladder', '').replace('-', '')
+        # Channels are misnamed
+        game_name = game_name.replace('raceftg', 'raceforthegalaxy').replace('rollftg', 'rollforthegalaxy')
         # There shouldn't be diamonds in the vs matchups
         current_matches = re.findall(":hourglass: ([a-zA-Z0-9 ]+)[^:]*? :vs: ([a-zA-Z0-9 ]+)", message.content)
         if current_matches:
             for match in current_matches:
-                await get_tables_by_players(list(match), message, game_name)
+                match_p1, match_p2 = match[0].strip(), match[1].strip()
+                await get_tables_by_players([match_p1, match_p2], message, game_name)
         await message.channel.send("This should automatically create a game. If something weird happens, tell @Pocc.")
-        num_users = 0
+        player_names = []
         all_logins = get_all_logins()
         for discord_id in all_logins:
             if len(all_logins[discord_id]["password"]) > 0:
-                num_users += 1
-        logger.debug(f"This bot found {str(num_users)} users with accounts.")
+                player_names.append(all_logins[discord_id]["username"])
+        logger.debug(f"This bot found {str(player_names)} users with accounts.")
         # Leading : because a discord emoji will come before it.
         matches = re.findall(r":crossed_swords: ([^:\n]+) :vs: ([^:\n]+)", message.content)
         for match in matches:
@@ -455,7 +457,6 @@ def get_discord_id(bga_name, message):
 
 
 async def get_tables_by_players(players, message, game_target=""):
-    ret_msg = ""
     bga_ids = []
     tables = {}
     bga_account = BGAAccount()
@@ -488,7 +489,6 @@ async def get_tables_by_players(players, message, game_target=""):
         table_player_ids = table["player_display"]  # Table.player_display is the player Ids at this table
         if set(bga_ids).issubset(table_player_ids):
             player_tables.append(table)
-    tasks = []
     for table in player_tables:
         sent_messages += [await message.channel.send("Getting table information...")]
         logger.debug(f"Checking table {table_id} for bga_ids {str(bga_ids)} in table {str(table)}")
@@ -503,14 +503,12 @@ async def get_tables_by_players(players, message, game_target=""):
             game_name = game_name_list[0] 
         if normalize_name(game_name) not in normalized_bga_games:
             await bga_account.close_connection()
-            await message.channel.send(f"{table['game_name']} is not a BGA game.")
+            await message.channel.send(f"{game_name} is not a BGA game.")
             return
         # Only add table status lines for games we care about
         if len(game_target) > 0 and normalize_name(game_name) != normalize_name(game_target):
             continue
-        new_task = asyncio.create_task(send_table_summary(message, bga_account, table, game_name))
-        tasks.append(new_task)
-    await asyncio.gather(*tasks)
+        await send_table_summary(message, bga_account, table, game_name)
     for sent_message in sent_messages:  # Only delete all status messages once we're done
         await sent_message.delete()
     if len(player_tables) == 0:
@@ -522,9 +520,8 @@ async def get_tables_by_players(players, message, game_target=""):
             players_str = f"[ <@!{p1_id}> <@!{p2_id}> ]"
         else:
             players_str = str(players)
-        ret_msg = f"No {game_target} tables found between players {players_str}."
+        await message.channel.send(f"No {game_target} tables found between players {players_str}.")
     await bga_account.close_connection()
-    await send_message_partials(message.channel, ret_msg)    
 
 async def send_table_summary(message, bga_account, table, game_name):
     # If a game has not started, but it is scheduled, it will be None here.
@@ -586,6 +583,8 @@ async def send_message_partials(destination, remainder):
                 msg_part = msg_part[:-1]
             # Discord will delete whitespace before a message
             # so preserve that whitespace by inserting a character
+            while remainder[0] == "\n":
+                remainder = remainder[1:]
             if remainder[0] == "\t":
                 remainder = ".   " + remainder[1:]
         await destination.send(msg_part)
