@@ -11,6 +11,10 @@ These commands will work in any channel @BGA is on and also as direct messages t
     This bot will delete this message after you send it.
     If either username or password has spaces, use quotes.
 
+    This bot will remember your BGA password forever. If you’d like to
+    deauthorise the bot from acting on your behalf, change your password at
+    <https://boardgamearena.com/preferences?section=account>.
+
 ## **link @discord_tag bga_username**
     NOTE: If you run setup, linking accounts is done automatically.
 
