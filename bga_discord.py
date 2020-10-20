@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import logging.handlers
+from bga_logging import BGALoggingFormatter
 import os
 import re
 import shlex
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger('discord').setLevel(logging.WARN)
 # Add the log message handler to the logger
 handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=10000000, backupCount=0)
-formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+formatter = BGALoggingFormatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
