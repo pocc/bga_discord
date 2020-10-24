@@ -141,17 +141,21 @@ class BGAAccount:
             lower_games[lower_name] = games[game]
         # If name is unique like "race" for "raceforthegalaxy", use that
         games_found = []
+        game_name = ""
         for game_i in list(lower_games.keys()):
-            if game_i.startswith(lower_game_name):
+            if game_i == lower_game_name:  # if there's an exact match, take it!
+                game_name = lower_game_name
+            elif game_i.startswith(lower_game_name):
                 games_found.append(game_i)
-        if len(games_found) == 0:
-            err = f"`{lower_game_name}` is not available on BGA. Check your spelling " \
-                f"(capitalization and special characters do not matter)."
-            return -1, err
-        elif len(games_found) > 1:
-            err = f"`{lower_game_name}` matches [{','.join(games_found)}]. Use more letters to match."
-            return -1, err
-        game_name = games_found[0]
+        if len(game_name) == 0:
+            if len(games_found) == 0:
+                err = f"`{lower_game_name}` is not available on BGA. Check your spelling " \
+                    f"(capitalization and special characters do not matter)."
+                return -1, err
+            elif len(games_found) > 1:
+                err = f"`{lower_game_name}` matches [{','.join(games_found)}]. Use more letters to match."
+                return -1, err
+            game_name = games_found[0]
         game_id = lower_games[game_name]
         url = self.base_url + "/table/table/createnew.html"
         params = {

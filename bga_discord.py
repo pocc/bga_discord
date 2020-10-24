@@ -52,6 +52,8 @@ async def on_message(message):
             await message.author.send(f"You entered \n`{message.content}`\nwhich has an odd number of \" characters. Please fix this and retry.")
             return
         try:
+            if message.content.startswith('!play'):
+                message.content.replace('!play', '!bga make')
             if message.content.startswith('!bga'):
                 await init_bga_game(message)
             if message.content.startswith('!tfm'):
@@ -63,7 +65,8 @@ async def on_message(message):
     # Do not assume that calling user is a player in the game
     # For now, only bosspile bot posts will be read and only if they have new matches
     elif message.author.id == 713362507770626149 and ":vs:" in message.content:
-        game_name = message.channel.name.replace('bosspile', '').replace('ladder', '').replace('-', '')
+        game_name = re.sub(r"([mv]?bosspile|ladder)", "", message.channel.name)
+        game_name = re.sub(r"[^a-zA-Z0-9]+", "", game_name)  # Delete any non-ascii characters
         # Channels are misnamed
         game_name = game_name.replace('raceftg', 'raceforthegalaxy').replace('rollftg', 'rollforthegalaxy')
         # There shouldn't be diamonds in the vs matchups
@@ -147,7 +150,12 @@ async def init_bga_game(message):
         discord_id = message.author.id
         await setup_bga_game(message, discord_id, game, players, options)
     elif command == "tables": # Get all tables that have players in common
-        await get_tables_by_players(args[2:], message)
+        if len(args) == 2:
+            # Assume that you want to know your own tables if command is "!bga tables"
+            players = [message.author.display_name]
+        else:
+            players = args[2:]
+        await get_tables_by_players(players, message)
     elif command == "friend":
         await add_friends(args[2:], message)
     elif command == "options":
@@ -447,11 +455,11 @@ def get_discord_id(bga_name, message):
     """Search through logins to find the discord id for a bga name."""
     users = get_all_logins()
     for discord_id in users:
-        if users[discord_id]["username"] == bga_name:
+        if users[discord_id]["username"].lower() == bga_name.lower():
             return discord_id
     # Search for discord id if BGA name == discord nickname
     for member in message.guild.members:
-        if member.display_name.startswith(bga_name):
+        if member.display_name.lower().startswith(bga_name.lower()):
             return member.id
     return -1
 
