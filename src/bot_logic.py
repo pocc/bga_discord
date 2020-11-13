@@ -1,108 +1,24 @@
-"""Bot to create games on discord."""
+"""Interact with the credentials file called `bga_kys`"""
 from cryptography.fernet import Fernet
-import datetime
 import json
+import os
+import datetime
 import logging
 import logging.handlers
-import os
 import re
 import shlex
 import traceback
-from urllib.parse import urlparse
-
 
 import discord
 
 from keys import TOKEN, FERNET_KEY
 from bga_mediator import BGAAccount, get_game_list, update_games_cache
 from tfm_mediator import TFMGame, TFMPlayer
+from utils import is_url
 
-LOG_FILENAME='errs'
 logger = logging.getLogger(__name__)
 logging.getLogger('discord').setLevel(logging.WARN)
-# Add the log message handler to the logger
-handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=10000000, backupCount=0)
-formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
 
-client = discord.Client()
-
-@client.event
-async def on_ready():
-    """Let the user who started the bot know that the connection succeeded."""
-    logger.info(f'{client.user.name} has connected to Discord!')
-    # Create words under bot that say "Listening to !bga"
-    listening_to_help = discord.Activity(type=discord.ActivityType.listening, name="!bga")
-    await client.change_presence(activity=listening_to_help)
-
-
-@client.event
-async def on_message(message):
-    """Listen to messages so that this bot can do something."""
-    # Don't respond to this bot's own messages!
-    if message.author == client.user:
-        return
-    if message.content.startswith('!bga') or message.content.startswith('!tfm'):
-        logger.debug(f"Received message {message.content}")
-        # Replace the quotes on a German keyboard with regular ones.
-        message.content.replace('„', '"').replace('“', '"')
-        if message.content.count("\"") % 2 == 1:
-            await message.author.send(f"You entered \n`{message.content}`\nwhich has an odd number of \" characters. Please fix this and retry.")
-            return
-        try:
-            if message.content.startswith('!play'):
-                message.content.replace('!play', '!bga make')
-            if message.content.startswith('!bga'):
-                await init_bga_game(message)
-            if message.content.startswith('!tfm'):
-                await init_tfm_game(message)
-        except Exception as e:
-            logger.error("Encountered error:" + str(e) + "\n" + str(traceback.format_exc()))
-            await message.channel.send("Tell <@!234561564697559041> to fix his bga bot.")
-    # Integration with bosspiles bot. If this bot sees `@user1 :vs: @user2`,
-    # Do not assume that calling user is a player in the game
-    # For now, only bosspile bot posts will be read and only if they have new matches
-    elif message.author.id == 713362507770626149 and ":vs:" in message.content:
-        game_name = re.sub(r"([mv]?bosspile|ladder)", "", message.channel.name)
-        game_name = re.sub(r"[^a-zA-Z0-9]+", "", game_name)  # Delete any non-ascii characters
-        # Channels are misnamed
-        game_name = game_name.replace('raceftg', 'raceforthegalaxy').replace('rollftg', 'rollforthegalaxy')
-        # There shouldn't be diamonds in the vs matchups
-        current_matches = re.findall(":hourglass: ([a-zA-Z0-9 ]+)[^:]*? :vs: ([a-zA-Z0-9 ]+)", message.content)
-        if current_matches:
-            for match in current_matches:
-                match_p1, match_p2 = match[0].strip(), match[1].strip()
-                await get_tables_by_players([match_p1, match_p2], message, game_name)
-        await message.channel.send("This should automatically create a game. If something weird happens, tell @Pocc.")
-        player_names = []
-        all_logins = get_all_logins()
-        for discord_id in all_logins:
-            if len(all_logins[discord_id]["password"]) > 0:
-                player_names.append(all_logins[discord_id]["username"])
-        logger.debug(f"This bot found {str(player_names)} users with accounts.")
-        # Leading : because a discord emoji will come before it.
-        matches = re.findall(r":crossed_swords: ([^:\n]+) :vs: ([^:\n]+)", message.content)
-        for match in matches:
-            p1_discord_id = -1
-            p2_discord_id = -1
-            p1_has_account = False
-            p2_has_account = False
-            logger.debug(f"Found potential match {str(match)} for game {game_name}")
-            p1_text, p2_text = match[0].strip(), match[1].strip()
-            if p1_text.startswith("<@"):
-                p1_discord_id = re.match(r"<@!?(\d+)", p1_text)[1]
-                p1_has_account = p1_discord_id in all_logins and len(all_logins[p1_discord_id]["password"])
-            if p2_text.startswith("<@"):
-                p2_discord_id = re.match(r"<@!?(\d+)", p2_text)[1]
-                p2_has_account = p2_discord_id in all_logins and len(all_logins[p2_discord_id]["password"])
-            logger.debug(f"Found discord ids: {p1_discord_id} {p2_discord_id}")
-            # If p1/p2_text are discord tags or bga names, setup should properly convert either
-            if p1_discord_id != -1 and p1_has_account:
-                await setup_bga_game(message, p1_discord_id, game_name, [p1_text, p2_text], {"speed": "1/day"})
-            elif p2_discord_id != -1 and p2_has_account:
-                await setup_bga_game(message, p2_discord_id, game_name, [p1_text, p2_text], {"speed": "1/day"})
 
 async def init_bga_game(message):
     args = shlex.split(message.content)
@@ -152,7 +68,16 @@ async def init_bga_game(message):
     elif command == "tables": # Get all tables that have players in common
         if len(args) == 2:
             # Assume that you want to know your own tables if command is "!bga tables"
-            players = [message.author.display_name]
+            user_data = get_all_logins()
+            if str(message.author.id) in user_data:
+                players = [user_data[str(message.author.id)]["username"]]
+            else:
+                help_msg = "You can only use `!bga tables` without specifying " + \
+                    "player names if your discord name is linked to your BGA " + \
+                    "username. Link them with `!bga link` or specify the " + \
+                    "players you want to lookup tables for."
+                await message.channel.send(help_msg)
+                return
         else:
             players = args[2:]
         await get_tables_by_players(players, message)
@@ -290,7 +215,7 @@ async def setup_bga_account(message, bga_username, bga_password):
         save_data(discord_id, player_id, bga_username, bga_password)
         await message.channel.send(f"Account {bga_username} setup successfully.")
     else:
-        await message.author.send("Bad username or password. Try putting quotes around both.")
+        await message.author.send("Unable to setup account because of bad username or password. Try putting quotes (\") around either if there are spaces or special characters.")
 
 
 async def get_active_session(message, discord_id):
@@ -310,28 +235,7 @@ async def get_active_session(message, discord_id):
     if logged_in:
         return account
     else:
-        await message.channel.send("Bad username or password. Try putting quotes around both.")
-
-
-async def link_accounts(message, discord_id, bga_username):
-    """Link a BGA account to a discord account"""
-    # An empty password signifies a linked but not setup account
-    logins = get_all_logins()
-    if str(discord_id) in logins and logins[str(discord_id)]["username"]:
-        await message.channel.send(f"{bga_username} has already run link or setup. Not linking.")
-        return
-    linking_agent = message.author.id
-    account = await get_active_session(message, linking_agent)
-    if not account:
-        return
-    bga_id = await account.get_player_id(bga_username)
-    if bga_id == -1:
-        await message.channel.send(f"Unable to find {bga_username}. Are you sure it's spelled correctly?")
-        return
-    bogus_password = ""
-    save_data(discord_id, bga_id, bga_username, bogus_password)
-    await message.channel.send(f"Discord <@!{str(discord_id)}> successfully linked to BGA {bga_username}.")
-    await account.close_connection()
+        await message.channel.send("This account was set up with a bad username or password. DM the bga bot with `!bga setup \"username\" \"pass\"`.")
 
 
 async def setup_bga_game(message, p1_discord_id, game, players, options):
@@ -418,52 +322,6 @@ async def find_bga_users(players, error_players):
     return bga_discord_user_map
 
 
-def save_data(discord_id, bga_userid, bga_username, bga_password):
-    """save data."""
-    cipher_suite = Fernet(FERNET_KEY)
-    user_json = get_all_logins()
-    user_json[str(discord_id)] = {"bga_userid": bga_userid, "username": bga_username, "password": bga_password}
-    updated_text = json.dumps(user_json)
-    reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
-    with open("bga_keys", "wb") as f:
-        f.write(reencrypted_text)
-
-
-def get_all_logins():
-    """Get the login details from the encrypted text store."""
-    cipher_suite = Fernet(FERNET_KEY)
-    if os.path.exists("bga_keys"):
-        with open("bga_keys", "rb") as f:
-            encrypted_text = f.read()
-            text = cipher_suite.decrypt(encrypted_text).decode('utf-8')
-    else:
-        text = "{}"
-    user_json = json.loads(text)
-    return user_json
-
-
-def get_login(discord_id):
-    """Get login info for a specific user."""
-    discord_id_str = str(discord_id)
-    logins = get_all_logins()
-    if discord_id_str in logins:
-        return logins[discord_id_str]
-    return None
-
-
-def get_discord_id(bga_name, message):
-    """Search through logins to find the discord id for a bga name."""
-    users = get_all_logins()
-    for discord_id in users:
-        if users[discord_id]["username"].lower() == bga_name.lower():
-            return discord_id
-    # Search for discord id if BGA name == discord nickname
-    for member in message.guild.members:
-        if member.display_name.lower().startswith(bga_name.lower()):
-            return member.id
-    return -1
-
-
 async def get_tables_by_players(players, message, game_target=""):
     bga_ids = []
     tables = {}
@@ -521,14 +379,18 @@ async def get_tables_by_players(players, message, game_target=""):
         await sent_message.delete()
     if len(player_tables) == 0:
         # Try to convert bga names to discord names
-        p1, p2 = players
-        p1_id = get_discord_id(p1, message)
-        p2_id = get_discord_id(p2, message)
-        if p1_id != -1 and p2_id != -1:
-            players_str = f"[ <@!{p1_id}> <@!{p2_id}> ]"
-        else:
-            players_str = str(players)
-        await message.channel.send(f"No {game_target} tables found between players {players_str}.")
+        players_str = "[ "
+        for player_name in players:
+            player_str = ""
+            if message.guild:
+                player_id = get_discord_id(player_name, message)
+                if player_id != -1:
+                    player_str = f"<@!{player_id}> "
+            if not player_str:
+                player_str = player_name + " "
+            players_str += player_str
+        players_str += "]"
+        await message.channel.send(f"No {game_target} tables found for players {players_str}.")
     await bga_account.close_connection()
 
 async def send_table_summary(message, bga_account, table, game_name):
@@ -545,8 +407,9 @@ async def send_table_summary(message, bga_account, table, game_name):
     p_names = []
     for p_id in table["players"]:
         p_name = table["players"][p_id]["fullname"]
-        if table["players"][p_id]["table_order"] == str(table["current_player_nbr"]):
-            p_name = '**' + p_name + ' to play**'
+        # Would include this, but current_player_nbr seems to be the opposite value of expected for a player
+        #if table["players"][p_id]["table_order"] == str(table["current_player_nbr"]):
+        #    p_name = '**' + p_name + ' to play**'
         p_names.append(p_name)
     await message.channel.send(f"__{game_name}__\t\t[{', '.join(p_names)}]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\n\t\t<{table_url}>\n")
 
@@ -570,7 +433,7 @@ async def send_table_embed(message, game, desc, author, players, second_title, s
 
 async def send_help(message, help_type):
     """Send the user a help message from a file"""
-    filename = help_type + "_msg.md"
+    filename = "src/docs/" + help_type + "_msg.md"
     with open(filename) as f:
         text = f.read()
     remainder = text.replace(4*" ", "\t")
@@ -597,13 +460,68 @@ async def send_message_partials(destination, remainder):
                 remainder = ".   " + remainder[1:]
         await destination.send(msg_part)
 
-# Via https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not
-def is_url(url):
-    try:
-        result = urlparse(url)
-        return all([result.scheme, result.netloc])
-    except ValueError:
-        return False
+
+def save_data(discord_id, bga_userid, bga_username, bga_password):
+    """save data."""
+    cipher_suite = Fernet(FERNET_KEY)
+    user_json = get_all_logins()
+    user_json[str(discord_id)] = {"bga_userid": bga_userid, "username": bga_username, "password": bga_password}
+    updated_text = json.dumps(user_json)
+    reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
+    with open("src/bga_keys", "wb") as f:
+        f.write(reencrypted_text)
 
 
-client.run(TOKEN)
+def get_all_logins():
+    """Get the login details from the encrypted text store."""
+    cipher_suite = Fernet(FERNET_KEY)
+    if os.path.exists("src/bga_keys"):
+        with open("src/bga_keys", "rb") as f:
+            encrypted_text = f.read()
+            text = cipher_suite.decrypt(encrypted_text).decode('utf-8')
+    else:
+        text = "{}"
+    user_json = json.loads(text)
+    return user_json
+
+
+def get_login(discord_id):
+    """Get login info for a specific user."""
+    discord_id_str = str(discord_id)
+    logins = get_all_logins()
+    if discord_id_str in logins:
+        return logins[discord_id_str]
+    return None
+
+def get_discord_id(bga_name, message):
+    """Search through logins to find the discord id for a bga name."""
+    users = get_all_logins()
+    for discord_id in users:
+        if users[discord_id]["username"].lower() == bga_name.lower():
+            return discord_id
+    # Search for discord id if BGA name == discord nickname
+    for member in message.guild.members:
+        if member.display_name.lower().startswith(bga_name.lower()):
+            return member.id
+    return -1
+
+
+async def link_accounts(message, discord_id, bga_username):
+    """Link a BGA account to a discord account"""
+    # An empty password signifies a linked but not setup account
+    logins = get_all_logins()
+    if str(discord_id) in logins and logins[str(discord_id)]["username"]:
+        await message.channel.send(f"{bga_username} has already run link or setup. Not linking.")
+        return
+    linking_agent = message.author.id
+    account = await get_active_session(message, linking_agent)
+    if not account:
+        return
+    bga_id = await account.get_player_id(bga_username)
+    if bga_id == -1:
+        await message.channel.send(f"Unable to find {bga_username}. Are you sure it's spelled correctly?")
+        return
+    bogus_password = ""
+    save_data(discord_id, bga_id, bga_username, bogus_password)
+    await message.channel.send(f"Discord <@!{str(discord_id)}> successfully linked to BGA {bga_username}.")
+    await account.close_connection()

@@ -13,13 +13,15 @@ logger = logging.getLogger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger('aiohttp').setLevel(logging.WARN)
 
+GAME_LIST_PATH = "src/bga_game_list.json"
+
 async def get_game_list():
     """Get the list of games and numbers BGA assigns to each game.
     The url below should be accessible unauthenticated (test with curl).
     """
     oneweek = 604800
-    if time.time() - oneweek > os.path.getmtime("bga_game_list.json"):
-        with open("bga_game_list.json", "r") as f:
+    if time.time() - oneweek > os.path.getmtime(GAME_LIST_PATH):
+        with open(GAME_LIST_PATH, "r") as f:
             logger.debug("Loading game list from cache because the game list has been checked in the last week.")
             return json.loads(f.read()), ""
     url = 'https://boardgamearena.com/gamelist?section=all'
@@ -27,7 +29,7 @@ async def get_game_list():
         async with session.get(url) as response:
             if response.status >= 400:
                 # If there's a problem with getting the most accurate list, use cached version
-                with open("bga_game_list.json", "r") as f:
+                with open(GAME_LIST_PATH, "r") as f:
                     logger.debug("Loading game list from cache because BGA was unavailable")
                     return json.loads(f.read()), ""
             html = await response.text()
@@ -44,11 +46,11 @@ async def get_game_list():
             return games, ""
 
 def update_games_cache(games):
-    with open("bga_game_list.json", "r") as f:
+    with open(GAME_LIST_PATH, "r") as f:
         file_text = f.read()
         file_games = json.loads(file_text)
         games.update(file_games)
-    with open("bga_game_list.json", "w") as f:            
+    with open(GAME_LIST_PATH, "w") as f:            
         f.write(json.dumps(games, indent=2))
 
 class BGAAccount:
@@ -419,6 +421,19 @@ class BGAAccount:
         else:
             num_moves = ""
         return game_progress, num_moves, table_url
+
+    async def open_table(self, table_id):
+        """Function to open the table to other people for a specific table.
+        You must have created the table to be able to use this function.
+        example get url https://boardgamearena.com/table/table/openTableNow.html?table=121886720&dojo.preventCache=1604627527457
+        """
+        url = self.base_url + "/table/table/openTableNow.html"
+        params = {
+            "table": table_id,
+            "dojo.preventCache": str(int(time.time()))
+        }
+        url += "?" + urllib.parse.urlencode(params)
+        await self.fetch(url)
 
     async def close_connection(self):
         """Close the connection. aiohttp complains otherwise."""
