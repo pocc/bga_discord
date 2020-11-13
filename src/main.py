@@ -12,7 +12,8 @@ import traceback
 import discord
 
 from keys import TOKEN
-from bot_logic import init_bga_game, init_tfm_game
+from bot_logic import init_bga_game
+from tfm_mediator import init_tfm_game
 from bga_mediator import BGAAccount, get_game_list, update_games_cache
 from tfm_mediator import TFMGame, TFMPlayer
 from bosspiles_integration import generate_matches_from_bosspile

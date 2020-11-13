@@ -5,8 +5,14 @@ import re
 import time
 import urllib.parse
 import random
+import shlex
 
 import aiohttp
+
+from utils import is_url
+from discord_utils import send_table_embed
+from utils import send_help
+from creds_iface import get_discord_id
 
 logger = logging.getLogger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
@@ -152,3 +158,82 @@ class TFMGame:
     async def close_connection(self):
         """Close the connection. aiohttp complains otherwise."""
         await self.session.close()
+
+
+async def init_tfm_game(message):
+    """Format of message is !tfm +cpv player1;bgy;urd.
+    See the help message for more info."""
+    args = shlex.split(message.content)
+    global_opts = ""
+    server = "https://mars.ross.gg"  # default but can be changed by adding a url to the command
+    players = []
+    if len(args) == 1:
+        await message.author.send("No command entered! Showing the help for !tfm.")
+        await send_help(message, "tfm_help")
+        return
+    for arg in args[1:]:
+        if arg[0] == "+":
+            global_opts = arg[1:]
+            continue
+        if is_url(arg):
+            server = arg
+            continue
+        logger.debug(f"Parsing arg `{arg}`")
+        all_args = arg.split(';')
+        if len(all_args) == 2:
+            name, colors = all_args
+            opts = ""
+        elif len(all_args) == 3:
+            name, colors, opts = all_args
+        else:
+            await message.author.send(f"Too many semicolons in player string {arg} (expected 2-3)!")
+            return
+        if not re.match("[rygbpk]+", colors):
+            await message.author.send(f"Color in {colors} for player {name} is not valid.")
+            return
+        if not re.match("[23456abcdefghilmnoprstuvw]*", opts):
+            await message.author.send(f"Opt in {opts} for player {name} is not valid.")
+            return
+        new_player = TFMPlayer(name, colors, opts)
+        players.append(new_player)
+    game = TFMGame(server)
+    options = await game.generate_shared_params(global_opts, players)
+    data = await game.create_table(options)
+    player_lines = []
+    i = 1
+    for player in data:
+        color_circle = f":{player['color']}_circle:"
+        player_str = player['name']
+        discord_id = get_discord_id(player_str, message)
+        if discord_id != -1:
+            player_str = f"<@!{discord_id}>"
+        player_line = f"**{i} {color_circle}** {player_str}\t [Link to Game]({player['player_link']})"
+        player_lines.append(player_line)
+        i += 1
+    author_line = ""  # It's not as important to have a game creator - the bot is the game creator
+    player_list_str = '\n'.join(player_lines)
+    options_str = ""
+    option_names = list(options.keys())
+    option_names.sort()
+    # The following is a kludge to create a table inside an embed with ~ tabs
+    # Use discord number to create a number like :three:
+    numbers = {"2": "two", "3": "three", "4": "four", "5": "five", "6": "six"}
+    number = numbers[str(options['startingCorporations'])]
+    truncated_opts_str = "*Complete options sent to game creator*\n\n　:{}: `{:<20}`".format(number, "Corporations")
+    expansions = ["colonies", "communityCardsOption", "corporateEra", "prelude", "promoCardsOption",  "turmoil", "venusNext"]
+    ith = 1
+    for expn in expansions:
+        short_expn = expn.replace("CardsOption", "")
+        if options[expn]:
+            truncated_opts_str += "　:white_check_mark:`{:<20}`".format(short_expn)
+        else:
+            truncated_opts_str += "　:x:`{:<20}`".format(short_expn)
+        ith += 1
+        if ith % 2 == 0:
+            truncated_opts_str += '\n' # should be a 2row 3col table
+    for key in option_names:
+        if key != "players":
+            options_str += f"{key}   =   {options[key]}\n"
+    await send_table_embed(message, "Terraforming Mars", f"Running on server {server}", author_line, player_list_str, "Options", truncated_opts_str)
+    await message.author.send(f"**Created game with these options**\n\n```{options_str}```")
+    await game.close_connection()

@@ -1,5 +1,3 @@
-"""Interact with the credentials file called `bga_kys`"""
-from cryptography.fernet import Fernet
 import json
 import os
 import datetime
@@ -11,10 +9,12 @@ import traceback
 
 import discord
 
-from keys import TOKEN, FERNET_KEY
-from bga_mediator import BGAAccount, get_game_list, update_games_cache
+from keys import TOKEN
+from bga_mediator import BGAAccount, get_game_list, bga_list_games, update_games_cache
 from tfm_mediator import TFMGame, TFMPlayer
-from utils import is_url
+from creds_iface import save_data, get_all_logins, get_login, get_discord_id
+from utils import is_url, send_help, send_message_partials
+from discord_utils import send_table_embed
 
 logger = logging.getLogger(__name__)
 logging.getLogger('discord').setLevel(logging.WARN)
@@ -28,7 +28,8 @@ async def init_bga_game(message):
         return
     command = args[1]
     if command == "list":
-        await bga_list_games(message)
+        retmsg = await bga_list_games()
+        message.channel.send(retmsg)
     elif command == "setup":
         if len(args) != 4:
             await message.channel.send("Setup requires a BGA username and "
@@ -90,88 +91,13 @@ async def init_bga_game(message):
                                   f"Valid commands are list, link, setup, and make.")
         await send_help(message, "bga_help")
 
-async def init_tfm_game(message):
-    """Format of message is !tfm +cpv player1;bgy;urd.
-    See the help message for more info."""
-    args = shlex.split(message.content)
-    global_opts = ""
-    server = "https://mars.ross.gg"  # default but can be changed by adding a url to the command
-    players = []
-    if len(args) == 1:
-        await message.author.send("No command entered! Showing the help for !tfm.")
-        await send_help(message, "tfm_help")
-        return
-    for arg in args[1:]:
-        if arg[0] == "+":
-            global_opts = arg[1:]
-            continue
-        if is_url(arg):
-            server = arg
-            continue
-        logger.debug(f"Parsing arg `{arg}`")
-        all_args = arg.split(';')
-        if len(all_args) == 2:
-            name, colors = all_args
-            opts = ""
-        elif len(all_args) == 3:
-            name, colors, opts = all_args
-        else:
-            await message.author.send(f"Too many semicolons in player string {arg} (expected 2-3)!")
-            return
-        if not re.match("[rygbpk]+", colors):
-            await message.author.send(f"Color in {colors} for player {name} is not valid.")
-            return
-        if not re.match("[23456abcdefghilmnoprstuvw]*", opts):
-            await message.author.send(f"Opt in {opts} for player {name} is not valid.")
-            return
-        new_player = TFMPlayer(name, colors, opts)
-        players.append(new_player)
-    game = TFMGame(server)
-    options = await game.generate_shared_params(global_opts, players)
-    data = await game.create_table(options)
-    player_lines = []
-    i = 1
-    for player in data:
-        color_circle = f":{player['color']}_circle:"
-        player_str = player['name']
-        discord_id = get_discord_id(player_str, message)
-        if discord_id != -1:
-            player_str = f"<@!{discord_id}>"
-        player_line = f"**{i} {color_circle}** {player_str}\t [Link to Game]({player['player_link']})"
-        player_lines.append(player_line)
-        i += 1
-    author_line = ""  # It's not as important to have a game creator - the bot is the game creator
-    player_list_str = '\n'.join(player_lines)
-    options_str = ""
-    option_names = list(options.keys())
-    option_names.sort()
-    # The following is a kludge to create a table inside an embed with ~ tabs
-    # Use discord number to create a number like :three:
-    numbers = {"2": "two", "3": "three", "4": "four", "5": "five", "6": "six"}
-    number = numbers[str(options['startingCorporations'])]
-    truncated_opts_str = "*Complete options sent to game creator*\n\n　:{}: `{:<20}`".format(number, "Corporations")
-    expansions = ["colonies", "communityCardsOption", "corporateEra", "prelude", "promoCardsOption",  "turmoil", "venusNext"]
-    ith = 1
-    for expn in expansions:
-        short_expn = expn.replace("CardsOption", "")
-        if options[expn]:
-            truncated_opts_str += "　:white_check_mark:`{:<20}`".format(short_expn)
-        else:
-            truncated_opts_str += "　:x:`{:<20}`".format(short_expn)
-        ith += 1
-        if ith % 2 == 0:
-            truncated_opts_str += '\n' # should be a 2row 3col table
-    for key in option_names:
-        if key != "players":
-            options_str += f"{key}   =   {options[key]}\n"
-    await send_table_embed(message, "Terraforming Mars", f"Running on server {server}", author_line, player_list_str, "Options", truncated_opts_str)
-    await message.author.send(f"**Created game with these options**\n\n```{options_str}```")
-    await game.close_connection()
-
 
 async def add_friends(friends, message):
     discord_id = message.author.id
-    account = await get_active_session(message, discord_id)
+    account, errs = await get_active_session(discord_id)
+    if errs:
+        await message.channel.send(errs)
+        return
     for friend in friends:
         err_msg = await account.add_friend(friend)
         if err_msg:
@@ -181,24 +107,6 @@ async def add_friends(friends, message):
         else:
             await message.channel.send(f"{friend} added successfully as a friend.")
     await account.close_connection()
-
-async def bga_list_games(message):
-    """List the games that BGA currently offers."""
-    game_data, err_msg = await get_game_list()
-    if len(err_msg) > 0:
-        await message.channel.send(err_msg)
-        return
-    game_list = list(game_data.keys())
-    tr_games = [g[:22] for g in game_list]
-    retmsg = ""
-    for i in range(len(tr_games)//5+1):
-        retmsg += '\n'
-        for game_name in tr_games[5*i:5*(i+1)]:
-            retmsg += "{:<24}".format(game_name)
-        if i%15 == 0 and i > 0 or i == len(tr_games)//5:
-            # Need to truncate at 1000 chars because max message length for discord is 2000
-            await message.channel.send("```" + retmsg + "```")
-            retmsg = ""
 
 async def setup_bga_account(message, bga_username, bga_password):
     """Save and verify login info."""
@@ -218,29 +126,28 @@ async def setup_bga_account(message, bga_username, bga_password):
         await message.author.send("Unable to setup account because of bad username or password. Try putting quotes (\") around either if there are spaces or special characters.")
 
 
-async def get_active_session(message, discord_id):
+async def get_active_session(discord_id):
     """Get an active session with the author's login info."""
     login_info = get_login(discord_id)
     if not login_info:
-        await message.channel.send(f"<@{discord_id}>: You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info.")
-        return
+        return None, f"<@{discord_id}>: You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info."
     # bogus_password ("") used for linking accounts, but is not full account setup
     if login_info["password"] == "":
-        await message.channel.send("You have to sign in to host a game. Run `!bga` to get info on setup.")
-        return
-    connection_msg = await message.channel.send("Establishing connection to BGA...")
+        return None, "You have to sign in to host a game. Run `!bga` to get info on setup."
     account = BGAAccount()
     logged_in = await account.login(login_info["username"], login_info["password"])
-    await connection_msg.delete()
     if logged_in:
-        return account
+        return account, None
     else:
-        await message.channel.send("This account was set up with a bad username or password. DM the bga bot with `!bga setup \"username\" \"pass\"`.")
+        return None, "This account was set up with a bad username or password. DM the bga bot with `!bga setup \"username\" \"pass\"`."
 
 
 async def setup_bga_game(message, p1_discord_id, game, players, options):
     """Setup a game on BGA based on the message."""
-    account = await get_active_session(message, p1_discord_id)
+    account, errs = await get_active_session(p1_discord_id)
+    if errs:
+        message.channel.send(errs)
+        return
     if account == None: # If err, fail now
         return
     table_msg = await message.channel.send("Creating table...")
@@ -393,6 +300,7 @@ async def get_tables_by_players(players, message, game_target=""):
         await message.channel.send(f"No {game_target} tables found for players {players_str}.")
     await bga_account.close_connection()
 
+
 async def send_table_summary(message, bga_account, table, game_name):
     # If a game has not started, but it is scheduled, it will be None here.
     if table["gamestart"]:
@@ -413,98 +321,6 @@ async def send_table_summary(message, bga_account, table, game_name):
         p_names.append(p_name)
     await message.channel.send(f"__{game_name}__\t\t[{', '.join(p_names)}]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\n\t\t<{table_url}>\n")
 
-async def send_table_embed(message, game, desc, author, players, second_title, second_content):
-    """Create a discord embed to send the message about table creation."""
-    logger.debug(f"Sending embed with message: {message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
-    retmsg = discord.Embed(
-        title=game,
-        description=desc,
-        color=3447003,
-    )
-    retmsg.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
-    if len(author) > 0:
-        retmsg.add_field(name="Creator", value=author, inline=False)
-    if players:
-        retmsg.add_field(name="Invited", value=players, inline=False)
-    if second_content:
-        retmsg.add_field(name=second_title, value=second_content, inline=False)
-    await message.channel.send(embed=retmsg)
-
-
-async def send_help(message, help_type):
-    """Send the user a help message from a file"""
-    filename = "src/docs/" + help_type + "_msg.md"
-    with open(filename) as f:
-        text = f.read()
-    remainder = text.replace(4*" ", "\t")
-    await send_message_partials(message.author, remainder)
-
-async def send_message_partials(destination, remainder):
-    # Loop over text and send message parts from the remainder until remainder is no more
-    while len(remainder) > 0:
-        chars_per_msg = 2000
-        if len(remainder) < chars_per_msg:
-            chars_per_msg = len(remainder)
-        msg_part = remainder[:chars_per_msg]
-        remainder = remainder[chars_per_msg:]
-        # Only break on newline
-        if len(remainder) > 0:
-            while remainder[0] != "\n":
-                remainder = msg_part[-1] + remainder
-                msg_part = msg_part[:-1]
-            # Discord will delete whitespace before a message
-            # so preserve that whitespace by inserting a character
-            while remainder[0] == "\n":
-                remainder = remainder[1:]
-            if remainder[0] == "\t":
-                remainder = ".   " + remainder[1:]
-        await destination.send(msg_part)
-
-
-def save_data(discord_id, bga_userid, bga_username, bga_password):
-    """save data."""
-    cipher_suite = Fernet(FERNET_KEY)
-    user_json = get_all_logins()
-    user_json[str(discord_id)] = {"bga_userid": bga_userid, "username": bga_username, "password": bga_password}
-    updated_text = json.dumps(user_json)
-    reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
-    with open("src/bga_keys", "wb") as f:
-        f.write(reencrypted_text)
-
-
-def get_all_logins():
-    """Get the login details from the encrypted text store."""
-    cipher_suite = Fernet(FERNET_KEY)
-    if os.path.exists("src/bga_keys"):
-        with open("src/bga_keys", "rb") as f:
-            encrypted_text = f.read()
-            text = cipher_suite.decrypt(encrypted_text).decode('utf-8')
-    else:
-        text = "{}"
-    user_json = json.loads(text)
-    return user_json
-
-
-def get_login(discord_id):
-    """Get login info for a specific user."""
-    discord_id_str = str(discord_id)
-    logins = get_all_logins()
-    if discord_id_str in logins:
-        return logins[discord_id_str]
-    return None
-
-def get_discord_id(bga_name, message):
-    """Search through logins to find the discord id for a bga name."""
-    users = get_all_logins()
-    for discord_id in users:
-        if users[discord_id]["username"].lower() == bga_name.lower():
-            return discord_id
-    # Search for discord id if BGA name == discord nickname
-    for member in message.guild.members:
-        if member.display_name.lower().startswith(bga_name.lower()):
-            return member.id
-    return -1
-
 
 async def link_accounts(message, discord_id, bga_username):
     """Link a BGA account to a discord account"""
@@ -514,7 +330,10 @@ async def link_accounts(message, discord_id, bga_username):
         await message.channel.send(f"{bga_username} has already run link or setup. Not linking.")
         return
     linking_agent = message.author.id
-    account = await get_active_session(message, linking_agent)
+    account, errs = await get_active_session(linking_agent)
+    if errs:
+        message.channel.send(errs)
+        return
     if not account:
         return
     bga_id = await account.get_player_id(bga_username)
