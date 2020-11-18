@@ -170,6 +170,14 @@ async def create_bga_game(message, bga_account, game, players, p1_id, options):
         return
     valid_bga_players = []
     invited_players = []
+
+    default_presentation = 'Created by BGA Discord Bot'
+    if message.guild:
+        default_presentation += ' for ' + message.guild.name
+        if type(message.channel) is discord.TextChannel:
+            default_presentation += ' #' + message.channel.name
+    options.insert(0, ('presentation', default_presentation))
+
     err_msg = await bga_account.set_table_options(options, table_id)
     if err_msg:
         await message.channel.send(err_msg)

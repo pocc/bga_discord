@@ -225,7 +225,6 @@ class BGAAccount:
         defaults = {
             "mode": "normal",
             "speed": "1/day",
-            "presentation": "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥",
             "minrep": "0",
         }
         # options will overwrite defaults if they are there
