@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """Bot to create games on discord."""
 import datetime
 import json
