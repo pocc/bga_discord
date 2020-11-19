@@ -24,7 +24,7 @@ Follow the steps required to [set up a Discord bot account](https://discordpy.re
 - Manage Messages
 - Read Message History
 
-Create a file called `keys.py` and paste the bot token into it:
+Create a file called `src/keys.py` and paste the bot token into it:
 
 ```
 TOKEN = 'yOUR tOkeN hEre'
