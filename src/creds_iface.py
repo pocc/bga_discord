@@ -3,6 +3,7 @@
 from cryptography.fernet import Fernet
 import json
 import os
+import stat
 
 from keys import FERNET_KEY
 
@@ -25,7 +26,7 @@ def save_data(discord_id, bga_userid, bga_username, bga_password):
     user_json[str(discord_id)] = {"bga_userid": bga_userid, "username": bga_username, "password": bga_password}
     updated_text = json.dumps(user_json)
     reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
-    with open("src/bga_keys", "wb") as f:
+    with os.fdopen(os.open("src/bga_keys", os.O_WRONLY | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR), "wb") as f:
         f.write(reencrypted_text)
 
 
