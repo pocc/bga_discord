@@ -146,7 +146,7 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
     """Setup a game on BGA based on the message."""
     account, errs = await get_active_session(p1_discord_id)
     if errs:
-        message.channel.send(errs)
+        await message.channel.send(errs)
         return
     if account == None: # If err, fail now
         return
