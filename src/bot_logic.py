@@ -88,7 +88,7 @@ async def init_bga_game(message):
         await send_help(message, "bga_options")
     else:
         await message.channel.send(f"You entered invalid command `{command}`. "
-                                  f"Valid commands are list, link, setup, and make.")
+                                  f"Valid commands are link, list, make, options, setup, tables.")
         await send_help(message, "bga_help")
 
 
