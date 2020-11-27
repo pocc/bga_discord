@@ -2,6 +2,8 @@
 If this bot sees `@user1 :vs: @user2`,
 Do not assume that calling user is a player in the game
 For now, only bosspile bot posts will be read and only if they have new matches
+
+This integration is mostly for the BGA Discord server
 """
 
 import re
@@ -20,8 +22,7 @@ async def generate_matches_from_bosspile(message):
     if current_matches:
         for match in current_matches:
             match_p1, match_p2 = match[0].strip(), match[1].strip()
-            await get_tables_by_players([match_p1, match_p2], message, game_name)
-    await message.channel.send("This should automatically create a game. If something weird happens, tell @Pocc.")
+            await get_tables_by_players([match_p1, match_p2], message, False, game_name)
     player_names = []
     all_logins = get_all_logins()
     for discord_id in all_logins:

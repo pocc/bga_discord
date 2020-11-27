@@ -329,6 +329,13 @@ class BGAAccount:
             elif option == "lang":
                 option_data["path"] = "/table/table/restrictToLanguage.html"
                 option_data["params"] = {"lang": updated_options[option]}
+            elif option.isdigit():
+                # If this is an HTML option, set it as such
+                option_data["path"] = "/table/table/changeoption.html"
+                option_data["params"] = {
+                    "id": option,
+                    "value": updated_options[option]
+                }
             else:
                 return f"Option {option} not a valid option."
 

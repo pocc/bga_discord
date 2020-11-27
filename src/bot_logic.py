@@ -88,7 +88,7 @@ async def init_bga_game(message):
         await send_help(message, "bga_options")
     else:
         await message.channel.send(f"You entered invalid command `{command}`. "
-                                  f"Valid commands are `link`, `list`, `make`, `options`, `setup`, `tables`.")
+                                  f"Valid commands are list, link, setup, and make.")
         await send_help(message, "bga_help")
 
 
@@ -146,7 +146,7 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
     """Setup a game on BGA based on the message."""
     account, errs = await get_active_session(p1_discord_id)
     if errs:
-        await message.channel.send(errs)
+        message.channel.send(errs)
         return
     if account == None: # If err, fail now
         return
@@ -229,7 +229,8 @@ async def find_bga_users(players, error_players):
     return bga_discord_user_map
 
 
-async def get_tables_by_players(players, message, game_target=""):
+async def get_tables_by_players(players, message, send_running_tables=True, game_target=""):
+    """Send running tables option is for integration where people don't want to see existing tables."""
     bga_ids = []
     tables = {}
     bga_account = BGAAccount()
@@ -281,7 +282,8 @@ async def get_tables_by_players(players, message, game_target=""):
         # Only add table status lines for games we care about
         if len(game_target) > 0 and normalize_name(game_name) != normalize_name(game_target):
             continue
-        await send_table_summary(message, bga_account, table, game_name)
+        if send_running_tables:
+            await send_table_summary(message, bga_account, table, game_name)
     for sent_message in sent_messages:  # Only delete all status messages once we're done
         await sent_message.delete()
     if len(player_tables) == 0:
