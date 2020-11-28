@@ -31,7 +31,8 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
-client = discord.Client()
+intents = discord.Intents(messages=True, guilds=True, members=True)
+client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
