@@ -38,7 +38,7 @@ async def on_message(message):
     # Don't respond to this bot's own messages!
     if message.author == client.user:
         return
-    if message.content.startswith("!play") or message.content.startswith("!setup"):
+    if message.content.startswith("!"):
         logger.debug(f"Received message {message.content}")
         # Replace the quotes on a German keyboard with regular ones.
         message.content = message.content.replace("„", '"').replace("“", '"')
