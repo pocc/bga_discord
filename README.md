@@ -49,8 +49,8 @@ BGA commands start with `!bga` and TFM games start with `!tfm`
 
 Check one of the help documents for more information about each subcommand:
 
-* `bga`: [BGA Help](bga_help_msg.md)
-* `tfm`: [TFM Help](tfm_help_msg.md)
+* `bga`: [BGA Help](src/docs/bga_help_msg.md)
+* `tfm`: [TFM Help](src/docs/tfm_help_msg.md)
 
 ## License
 
