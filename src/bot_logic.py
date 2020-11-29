@@ -11,7 +11,7 @@ from creds_iface import get_all_logins
 from creds_iface import get_discord_id
 from creds_iface import get_login
 from creds_iface import save_data
-from discord_utils import send_table_embed
+from discord_utils import send_table_embed, interactive_embed
 from utils import send_help
 
 logger = logging.getLogger(__name__)
@@ -29,14 +29,12 @@ async def init_bga_game(message):
         retmsg = await bga_list_games()
         message.channel.send(retmsg)
     elif command == "setup":
-        if len(args) != 4:
-            await message.channel.send(
-                "Setup requires a BGA username and " "password. Run `!bga` to see setup examples.",
-            )
-            return
-        bga_user = args[2]
-        bga_passwd = args[3]
-        await setup_bga_account(message, bga_user, bga_passwd)
+        if len(args) == 2:
+            await interactive_embed(message, "platform", ["Board Game Arena", "Terraforming Mars"])
+        else:
+            bga_user = args[2]
+            bga_passwd = args[3]
+            await setup_bga_account(message, bga_user, bga_passwd)
     elif command == "link":
         # expected syntax is `!bga link $discord_tag $bga_username`
         if len(args) != 4:

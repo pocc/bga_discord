@@ -25,3 +25,19 @@ async def send_table_embed(message, game, desc, author, players, second_title, s
     if second_content:
         retmsg.add_field(name=second_title, value=second_content, inline=False)
     await message.channel.send(embed=retmsg)
+
+
+async def interactive_embed(message, opt_type, options, cancellable=True):
+    """Ask the user which option they want and return the number."""
+    options_text = ""
+    for i in range(len(options)):
+        option = options[i]
+        options_text += f"\n**{i+1}** {option}"
+    retmsg = discord.Embed(
+        title=f"Choose the {opt_type} with a number",
+        description=options_text,
+        color=3447003,
+    )
+    if cancellable:
+        retmsg.set_footer(text="Type cancel to quit")
+    await message.author.send(embed=retmsg)

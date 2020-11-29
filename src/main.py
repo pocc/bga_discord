@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bot to create games on discord."""
 import logging.handlers
+import time
 import traceback
 
 import discord
@@ -32,13 +33,20 @@ async def on_ready():
     await client.change_presence(activity=listening_to_help)
 
 
+# Keep track of context in global variable {"<author id>": {"context": context, "timestamp": int timestamp}}
+interactive_context = {}
+
+
 @client.event
 async def on_message(message):
     """Listen to messages so that this bot can do something."""
     # Don't respond to this bot's own messages!
     if message.author == client.user:
         return
-    if message.content.startswith("!"):
+    # Transition to new syntax
+    # if any([message.content.startswith(i) for i in ["!bga"]]):
+    #    message.content = message.content.replace("!bga make", "!play").replace("!bga setup", "!setup").replace("!bga tables", "!tables")
+    if any([message.content.startswith(i) for i in ["!setup", "!play", "!tables", "!tfm"]]):
         logger.debug(f"Received message {message.content}")
         # Replace the quotes on a German keyboard with regular ones.
         message.content = message.content.replace("„", '"').replace("“", '"')
@@ -48,13 +56,41 @@ async def on_message(message):
             )
             return
         try:
-            if message.content.startswith("!bga"):
+            if message.content.startswith("!setup"):
+                interactive_context[str(message.author)] = {"context": "username", "timestamp": time.time()}
+                # await init_bga_game(message)
+            elif message.content.startswith("!play"):
                 await init_bga_game(message)
-            if message.content.startswith("!tfm"):
+            elif message.content.startswith("!tables"):
+                await init_bga_game(message)
+            elif message.content.startswith("!tfm"):
                 await init_tfm_game(message)
         except Exception as e:
             logger.error("Encountered error:" + str(e) + "\n" + str(traceback.format_exc()))
             await message.channel.send("Tell <@!234561564697559041> to fix his bga bot.")
+    # Use a context manager variable to keep track of next step for user.
+    # It's ok if this
+    if str(message.channel.type) == "private" and message.channel.me == client.user:
+        if message.content.startswith("cancel"):
+            # quit current interactive session
+            interactive_context[str(message.author)] = {}
+            return
+        data = interactive_context[str(message.author)]
+        in_thirty_sec_window = data["timestamp"] > time.time() - 30
+        if in_thirty_sec_window:
+            if data["context"] == "username":
+                await message.channel.send("In context username")
+            elif data["context"] == "password":
+                await message.channel.send("In context password")
+            elif data["context"] == "play":
+                await message.channel.send("In context choose game")
+            elif data["context"] == "tables":
+                await message.channel.send("In context tables")
+            elif data["context"] == "tables":
+                await message.channel.send("In context tables")
+        else:
+            await message.channel.send("You waited too long")
+    # Integration with Bosspiles bot
     elif message.author.id == 713362507770626149 and ":vs:" in message.content:
         await generate_matches_from_bosspile(message)
 
