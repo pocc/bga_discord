@@ -1,22 +1,25 @@
-"""Integration with bosspiles bot (https://github.com/pocc/bosspiles) 
+"""Integration with bosspiles bot (https://github.com/pocc/bosspiles)
 If this bot sees `@user1 :vs: @user2`,
 Do not assume that calling user is a player in the game
 For now, only bosspile bot posts will be read and only if they have new matches
 
 This integration is mostly for the BGA Discord server
 """
-
-import re
 import logging
+import re
+
+from bot_logic import get_all_logins
+from bot_logic import get_tables_by_players
+from bot_logic import setup_bga_game
+
 logger = logging.getLogger(__name__)
 
-from bot_logic import get_tables_by_players, get_all_logins, setup_bga_game
 
 async def generate_matches_from_bosspile(message):
     game_name = re.sub(r"([mv]?bosspile|ladder)", "", message.channel.name)
     game_name = re.sub(r"[^a-zA-Z0-9]+", "", game_name)  # Delete any non-ascii characters
     # Channels are misnamed
-    game_name = game_name.replace('raceftg', 'raceforthegalaxy').replace('rollftg', 'rollforthegalaxy')
+    game_name = game_name.replace("raceftg", "raceforthegalaxy").replace("rollftg", "rollforthegalaxy")
     # There shouldn't be diamonds in the vs matchups
     current_matches = re.findall(":hourglass: ([a-zA-Z0-9 ]+)[^:]*? :vs: ([a-zA-Z0-9 ]+)", message.content)
     if current_matches:
@@ -47,6 +50,18 @@ async def generate_matches_from_bosspile(message):
         logger.debug(f"Found discord ids: {p1_discord_id} {p2_discord_id}")
         # If p1/p2_text are discord tags or bga names, setup should properly convert either
         if p1_discord_id != -1 and p1_has_account:
-            await setup_bga_game(message, p1_discord_id, game_name, [p1_text, p2_text], {"speed": "1/day"})
+            await setup_bga_game(
+                message,
+                p1_discord_id,
+                game_name,
+                [p1_text, p2_text],
+                {"speed": "1/day"},
+            )
         elif p2_discord_id != -1 and p2_has_account:
-            await setup_bga_game(message, p2_discord_id, game_name, [p1_text, p2_text], {"speed": "1/day"})
+            await setup_bga_game(
+                message,
+                p2_discord_id,
+                game_name,
+                [p1_text, p2_text],
+                {"speed": "1/day"},
+            )

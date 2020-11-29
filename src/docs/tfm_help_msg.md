@@ -5,9 +5,9 @@ The options below correspond to options in the game. Global options,
 specified with a starting `+`, override player options. If all players have
 shared preferences for an option, then it will be added.
 
-The default tfm server is https://mars.ross.gg, but you can add any valid url 
-to the command and it will use that server instead, such as 
-* terraforming-mars.herokuapp.com 
+The default tfm server is https://mars.ross.gg, but you can add any valid url
+to the command and it will use that server instead, such as
+* terraforming-mars.herokuapp.com
 * tfm.msydevops.fr
 
 ## Examples

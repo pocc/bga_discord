@@ -1,3 +1,4 @@
+"""Utils that require discord."""
 import logging
 
 import discord
@@ -8,7 +9,9 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 async def send_table_embed(message, game, desc, author, players, second_title, second_content):
     """Create a discord embed to send the message about table creation."""
-    logger.debug(f"Sending embed with message: {message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}")
+    logger.debug(
+        f"Sending embed with message: {message}, game {game}, url {desc}, author {author}, players {players}, 2nd title {second_title}, 2nd content {second_content}",
+    )
     retmsg = discord.Embed(
         title=game,
         description=desc,

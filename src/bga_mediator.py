@@ -1,7 +1,6 @@
 """Create a connection to Board Game Arena and interact with it."""
-import atexit
-import logging
 import json
+import logging
 import os
 import re
 import time
@@ -11,9 +10,10 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
-logging.getLogger('aiohttp').setLevel(logging.WARN)
+logging.getLogger("aiohttp").setLevel(logging.WARN)
 
 GAME_LIST_PATH = "src/bga_game_list.json"
+
 
 async def get_game_list():
     """Get the list of games and numbers BGA assigns to each game.
@@ -24,7 +24,7 @@ async def get_game_list():
         with open(GAME_LIST_PATH, "r") as f:
             logger.debug("Loading game list from cache because the game list has been checked in the last week.")
             return json.loads(f.read()), ""
-    url = 'https://boardgamearena.com/gamelist?section=all'
+    url = "https://boardgamearena.com/gamelist?section=all"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status >= 400:
@@ -45,6 +45,7 @@ async def get_game_list():
             update_games_cache(games)
             return games, ""
 
+
 async def bga_list_games():
     """List the games that BGA currently offers."""
     game_data, err_msg = await get_game_list()
@@ -53,11 +54,11 @@ async def bga_list_games():
     game_list = list(game_data.keys())
     tr_games = [g[:22] for g in game_list]
     retmsg = ""
-    for i in range(len(tr_games)//5+1):
-        retmsg += '\n'
-        for game_name in tr_games[5*i:5*(i+1)]:
+    for i in range(len(tr_games) // 5 + 1):
+        retmsg += "\n"
+        for game_name in tr_games[5 * i : 5 * (i + 1)]:
             retmsg += "{:<24}".format(game_name)
-        if i%15 == 0 and i > 0 or i == len(tr_games)//5:
+        if i % 15 == 0 and i > 0 or i == len(tr_games) // 5:
             # Need to truncate at 1000 chars because max message length for discord is 2000
             retmsg = "```" + retmsg + "```"
     return retmsg
@@ -68,22 +69,25 @@ def update_games_cache(games):
         file_text = f.read()
         file_games = json.loads(file_text)
         games.update(file_games)
-    with open(GAME_LIST_PATH, "w") as f:            
+    with open(GAME_LIST_PATH, "w") as f:
         f.write(json.dumps(games, indent=2))
+
 
 class BGAAccount:
     """Account user/pass and methods to login/create games with it."""
+
     # Select numbers for changing options in a game
+
     def __init__(self):
         self.session = aiohttp.ClientSession()
         self.base_url = "https://boardgamearena.com"
 
     async def fetch(self, url):
         """Generic get."""
-        logger.debug("\nGET: "+ url)
+        logger.debug("\nGET: " + url)
         async with self.session.get(url) as response:
             resp_text = await response.text()
-            if resp_text[0] in ['{', '[']:  # If it's a json
+            if resp_text[0] in ["{", "["]:  # If it's a json
                 print(f"Fetched {url}. Resp: " + resp_text[:80])
             return resp_text
 
@@ -102,7 +106,7 @@ class BGAAccount:
             "rememberme": "on",
             "redirect": "join",
             "form_id": "loginform",
-            "dojo.preventCache": str(int(time.time()))
+            "dojo.preventCache": str(int(time.time())),
         }
         await self.post(url, params)
         return await self.verify_privileged()
@@ -110,9 +114,7 @@ class BGAAccount:
     async def logout(self):
         """Logout of current session."""
         url = self.base_url + "/account/account/logout.html"
-        params = {
-            "dojo.preventCache": str(int(time.time()))
-        }
+        params = {"dojo.preventCache": str(int(time.time()))}
         url += "?" + urllib.parse.urlencode(params)
         await self.fetch(url)
 
@@ -130,7 +132,7 @@ class BGAAccount:
                 "table": table_id,
                 "neutralized": "true",
                 "s": "table_quitgame",
-                "dojo.preventCache": str(int(time.time()))
+                "dojo.preventCache": str(int(time.time())),
             }
             quit_url += "?" + urllib.parse.urlencode(params)
             await self.fetch(quit_url)
@@ -138,9 +140,7 @@ class BGAAccount:
     async def quit_playing_with_friends(self):
         """ There is a BGA feature called "playing with friends". Remove friends from the session"""
         quit_url = self.base_url + "/group/group/removeAllFromGameSession.html"
-        params = {
-            "dojo.preventCache": str(int(time.time()))
-        }
+        params = {"dojo.preventCache": str(int(time.time()))}
         quit_url += "?" + urllib.parse.urlencode(params)
         await self.fetch(quit_url)
 
@@ -169,8 +169,10 @@ class BGAAccount:
                 games_found.append(game_i)
         if len(game_name) == 0:
             if len(games_found) == 0:
-                err = f"`{lower_game_name}` is not available on BGA. Check your spelling " \
+                err = (
+                    f"`{lower_game_name}` is not available on BGA. Check your spelling "
                     f"(capitalization and special characters do not matter)."
+                )
                 return -1, err
             elif len(games_found) > 1:
                 err = f"`{lower_game_name}` matches [{','.join(games_found)}]. Use more letters to match."
@@ -183,7 +185,7 @@ class BGAAccount:
             "gamemode": "async",
             "forceManual": "true",
             "is_meeting": "false",
-            "dojo.preventCache": str(int(time.time()))
+            "dojo.preventCache": str(int(time.time())),
         }
         url += "?" + urllib.parse.urlencode(params)
         resp = await self.fetch(url)
@@ -195,7 +197,7 @@ class BGAAccount:
         if resp_json["status"] == "0":
             err = resp_json["error"]
             if err.startswith("You have a game in progress"):
-                matches = re.match(r'(^[\w !]*)[^\/]*([^\"]*)', err)
+                matches = re.match(r"(^[\w !]*)[^\/]*([^\"]*)", err)
                 err = matches[1] + "Quit this game first (1 realtime game at a time): " + self.base_url + matches[2]
             return -1, err
         table_id = resp_json["data"]["table"]
@@ -203,7 +205,7 @@ class BGAAccount:
 
     async def set_table_options(self, options, table_id):
         url_data = await self.parse_options(options, table_id)
-        if isinstance(url_data, str): # In this case it's an error
+        if isinstance(url_data, str):  # In this case it's an error
             return url_data
         logger.debug("Got url data :" + str(url_data))
         for url_datum in url_data:
@@ -212,10 +214,7 @@ class BGAAccount:
     async def set_option(self, table_id, path, params):
         """Change the game options for the specified."""
         url = self.base_url + path
-        params.update({
-            "table": table_id,
-            "dojo.preventCache": str(int(time.time()))
-        })
+        params.update({"table": table_id, "dojo.preventCache": str(int(time.time()))})
         url += "?" + urllib.parse.urlencode(params)
         await self.fetch(url)
 
@@ -243,10 +242,7 @@ class BGAAccount:
                 if mode_name not in list(mode_types.keys()):
                     return f"Valid modes are training and normal. You entered {mode_name}."
                 mode_id = mode_types[mode_name]
-                option_data["params"] = {
-                    "id": 201,
-                    "value": mode_id
-                }
+                option_data["params"] = {"id": 201, "value": mode_id}
             elif option == "speed":
                 option_data["path"] = "/table/table/changeoption.html"
                 speed_name = updated_options[option]
@@ -267,10 +263,7 @@ class BGAAccount:
                 if speed_name not in list(speed_values.keys()):
                     return f"{speed_name} is not a valid speed. Check !bga options."
                 speed_id = speed_values[speed_name]
-                option_data["params"] = {
-                    "id": 200,
-                    "value": speed_id
-                }
+                option_data["params"] = {"id": 200, "value": speed_id}
             elif option == "minrep":
                 option_data["path"] = "/table/table/changeTableAccessReputation.html"
                 karma_numbers = {"0": 0, "50": 1, "65": 2, "75": 3, "85": 4}
@@ -289,16 +282,16 @@ class BGAAccount:
                     "good",
                     "strong",
                     "expert",
-                    "master"
+                    "master",
                 ]
-                if '-' not in value:
-                    return f"levels requires a dash between levels like `good-strong`."
-                [min_level, max_level] = value.lower().split('-')
+                if "-" not in value:
+                    return "levels requires a dash between levels like `good-strong`."
+                [min_level, max_level] = value.lower().split("-")
                 if min_level not in valid_levels:
                     return f"Min level {min_level} is not a valid level ({','.join(valid_levels)})"
                 if max_level not in valid_levels:
                     return f"Max level {max_level} is not a valid level ({','.join(valid_levels)})"
-                level_enum = {valid_levels[i]:i for i in range(len(valid_levels))}
+                level_enum = {valid_levels[i]: i for i in range(len(valid_levels))}
                 min_level_num = level_enum[min_level]
                 max_level_num = level_enum[max_level]
                 level_keys = {}
@@ -312,7 +305,7 @@ class BGAAccount:
             elif option == "players":
                 # Change minimum and maximum number of players
                 option_data["path"] = "/table/table/changeWantedPlayers.html"
-                [minp, maxp] = updated_options[option].split('-')
+                [minp, maxp] = updated_options[option].split("-")
                 option_data["params"] = {"minp": minp, "maxp": maxp}
             elif option == "restrictgroup":
                 option_data["path"] = "/table/table/restrictToGroup.html"
@@ -324,7 +317,7 @@ class BGAAccount:
                 if group_id != -1:
                     option_data["params"] = {"group": group_id}
                 else:
-                    groups_str = "[`" + "`,`".join([g[1] for g in group_options if g[1] != '-']) + "`]"
+                    groups_str = "[`" + "`,`".join([g[1] for g in group_options if g[1] != "-"]) + "`]"
                     return f"Unable to find group {value}. You are a member of groups {groups_str}."
             elif option == "lang":
                 option_data["path"] = "/table/table/restrictToLanguage.html"
@@ -332,10 +325,7 @@ class BGAAccount:
             elif option.isdigit():
                 # If this is an HTML option, set it as such
                 option_data["path"] = "/table/table/changeoption.html"
-                option_data["params"] = {
-                    "id": option,
-                    "value": updated_options[option]
-                }
+                option_data["params"] = {"id": option, "value": updated_options[option]}
             else:
                 return f"Option {option} not a valid option."
 
@@ -373,11 +363,7 @@ class BGAAccount:
     async def get_player_id(self, player):
         """Given the name of a player, get their player id."""
         url = self.base_url + "/player/player/findplayer.html"
-        params = {
-            "q": player,
-            "start": 0,
-            "count": "Infinity"
-        }
+        params = {"q": player, "start": 0, "count": "Infinity"}
         url += "?" + urllib.parse.urlencode(params)
         resp = await self.fetch(url)
         resp_json = json.loads(resp)
@@ -391,7 +377,7 @@ class BGAAccount:
         params = {
             "table": table_id,
             "player": player_id,
-            "dojo.preventCache": str(int(time.time()))
+            "dojo.preventCache": str(int(time.time())),
         }
         url += "?" + urllib.parse.urlencode(params)
         resp = await self.fetch(url)
@@ -408,25 +394,18 @@ class BGAAccount:
         friend_id = await self.get_player_id(friend_name)
         if friend_id == -1:
             return f"Player {friend_name} not found. Make sure they exist and check spelling."
-        params = {
-            "id": friend_id,
-            "dojo.preventCache": str(int(time.time()))
-        }
+        params = {"id": friend_id, "dojo.preventCache": str(int(time.time()))}
         path = "?" + urllib.parse.urlencode(params)
         await self.fetch(self.base_url + "/community/community/addToFriend.html" + path)
 
     async def get_tables(self, player_id):
         """Get all of the tables that a player is playing at. Tables are returned as json objects."""
         url = self.base_url + "/tablemanager/tablemanager/tableinfos.html"
-        params = {
-            "playerfilter": player_id,
-            "dojo.preventCache": str(int(time.time()))
-        }
+        params = {"playerfilter": player_id, "dojo.preventCache": str(int(time.time()))}
         url += "?" + urllib.parse.urlencode(params)
         resp = await self.fetch(url)
         resp_json = json.loads(resp)
         return resp_json["data"]["tables"]
-
 
     async def get_table_metadata(self, table_data):
         """Get the numbure of moves and progress of the game as strings"""
@@ -453,10 +432,7 @@ class BGAAccount:
         example get url https://boardgamearena.com/table/table/openTableNow.html?table=121886720&dojo.preventCache=1604627527457
         """
         url = self.base_url + "/table/table/openTableNow.html"
-        params = {
-            "table": table_id,
-            "dojo.preventCache": str(int(time.time()))
-        }
+        params = {"table": table_id, "dojo.preventCache": str(int(time.time()))}
         url += "?" + urllib.parse.urlencode(params)
         await self.fetch(url)
 

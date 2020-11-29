@@ -1,8 +1,8 @@
-# BGA Discord 
+# BGA Discord
 
 ![](https://i.imgur.com/KgvqoU0.png)
 
-This is a bot to help you set up [board game arena](https://boardgamearena.com) (BGA) 
+This is a bot to help you set up [board game arena](https://boardgamearena.com) (BGA)
 and [terraforming mars](https://github.com/bafolts/terraforming-mars) (TFM) games in discord.
 
 You can add the bot to your server by [giving it access](https://discord.com/api/oauth2/authorize?client_id=711844812424216598&permissions=79872&scope=bot).

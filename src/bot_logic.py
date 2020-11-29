@@ -1,23 +1,21 @@
-import json
-import os
 import datetime
-import logging
 import logging.handlers
 import re
 import shlex
-import traceback
 
-import discord
-
-from keys import TOKEN
-from bga_mediator import BGAAccount, get_game_list, bga_list_games, update_games_cache
-from tfm_mediator import TFMGame, TFMPlayer
-from creds_iface import save_data, get_all_logins, get_login, get_discord_id
-from utils import is_url, send_help, send_message_partials
+from bga_mediator import bga_list_games
+from bga_mediator import BGAAccount
+from bga_mediator import get_game_list
+from bga_mediator import update_games_cache
+from creds_iface import get_all_logins
+from creds_iface import get_discord_id
+from creds_iface import get_login
+from creds_iface import save_data
 from discord_utils import send_table_embed
+from utils import send_help
 
 logger = logging.getLogger(__name__)
-logging.getLogger('discord').setLevel(logging.WARN)
+logging.getLogger("discord").setLevel(logging.WARN)
 
 
 async def init_bga_game(message):
@@ -32,8 +30,9 @@ async def init_bga_game(message):
         message.channel.send(retmsg)
     elif command == "setup":
         if len(args) != 4:
-            await message.channel.send("Setup requires a BGA username and "
-                                       "password. Run `!bga` to see setup examples.")
+            await message.channel.send(
+                "Setup requires a BGA username and " "password. Run `!bga` to see setup examples.",
+            )
             return
         bga_user = args[2]
         bga_passwd = args[3]
@@ -45,8 +44,10 @@ async def init_bga_game(message):
         discord_tag = args[2]
         id_matches = re.match(r"<@!?(\d+)>", discord_tag)
         if not id_matches:
-            await message.channel.send("Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
-                                      "Make sure that the discord tag has an @ and is purple.")
+            await message.channel.send(
+                "Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
+                "Make sure that the discord tag has an @ and is purple.",
+            )
             return
         discord_id = id_matches[1]
         bga_user = args[3]
@@ -66,17 +67,19 @@ async def init_bga_game(message):
                 players.remove(arg)
         discord_id = message.author.id
         await setup_bga_game(message, discord_id, game, players, options)
-    elif command == "tables": # Get all tables that have players in common
+    elif command == "tables":  # Get all tables that have players in common
         if len(args) == 2:
             # Assume that you want to know your own tables if command is "!bga tables"
             user_data = get_all_logins()
             if str(message.author.id) in user_data:
                 players = [user_data[str(message.author.id)]["username"]]
             else:
-                help_msg = "You can only use `!bga tables` without specifying " + \
-                    "player names if your discord name is linked to your BGA " + \
-                    "username. Link them with `!bga link` or specify the " + \
-                    "players you want to lookup tables for."
+                help_msg = (
+                    "You can only use `!bga tables` without specifying "
+                    + "player names if your discord name is linked to your BGA "
+                    + "username. Link them with `!bga link` or specify the "
+                    + "players you want to lookup tables for."
+                )
                 await message.channel.send(help_msg)
                 return
         else:
@@ -87,8 +90,10 @@ async def init_bga_game(message):
     elif command == "options":
         await send_help(message, "bga_options")
     else:
-        await message.channel.send(f"You entered invalid command `{command}`. "
-                                  f"Valid commands are `link`, `list`, `make`, `options`, `setup`, `tables`.")
+        await message.channel.send(
+            f"You entered invalid command `{command}`. "
+            f"Valid commands are `link`, `list`, `make`, `options`, `setup`, `tables`.",
+        )
         await send_help(message, "bga_help")
 
 
@@ -108,6 +113,7 @@ async def add_friends(friends, message):
             await message.channel.send(f"{friend} added successfully as a friend.")
     await account.close_connection()
 
+
 async def setup_bga_account(message, bga_username, bga_password):
     """Save and verify login info."""
     # Delete account info posted on a public channel
@@ -123,14 +129,19 @@ async def setup_bga_account(message, bga_username, bga_password):
         save_data(discord_id, player_id, bga_username, bga_password)
         await message.channel.send(f"Account {bga_username} setup successfully.")
     else:
-        await message.author.send("Unable to setup account because of bad username or password. Try putting quotes (\") around either if there are spaces or special characters.")
+        await message.author.send(
+            'Unable to setup account because of bad username or password. Try putting quotes (") around either if there are spaces or special characters.',
+        )
 
 
 async def get_active_session(discord_id):
     """Get an active session with the author's login info."""
     login_info = get_login(discord_id)
     if not login_info:
-        return None, f"<@{discord_id}>: You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info."
+        return (
+            None,
+            f"<@{discord_id}>: You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info.",
+        )
     # bogus_password ("") used for linking accounts, but is not full account setup
     if login_info["password"] == "":
         return None, "You have to sign in to host a game. Run `!bga` to get info on setup."
@@ -139,7 +150,10 @@ async def get_active_session(discord_id):
     if logged_in:
         return account, None
     else:
-        return None, "This account was set up with a bad username or password. DM the bga bot with `!bga setup \"username\" \"pass\"`."
+        return (
+            None,
+            'This account was set up with a bad username or password. DM the bga bot with `!bga setup "username" "pass"`.',
+        )
 
 
 async def setup_bga_game(message, p1_discord_id, game, players, options):
@@ -148,7 +162,7 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
     if errs:
         await message.channel.send(f"<@{p1_discord_id}>:" + errs)
         return
-    if account == None: # If err, fail now
+    if account is None:
         return
     table_msg = await message.channel.send("Creating table...")
     await create_bga_game(message, account, game, players, p1_discord_id, options)
@@ -199,11 +213,21 @@ async def create_bga_game(message, bga_account, game, players, p1_id, options):
                 discord_tag = f"<@!{discord_id}>"
                 invited_players.append(f"{discord_tag} (BGA {bga_name})")
             else:
-                invited_players.append(f"(BGA {bga_name}) needs to run `!bga link <discord user> <bga user>` on discord (discord tag not found)")
+                invited_players.append(
+                    f"(BGA {bga_name}) needs to run `!bga link <discord user> <bga user>` on discord (discord tag not found)",
+                )
     author_str = f"\n:crown: <@!{p1_id}> (BGA {author_bga})"
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
     error_players_str = "".join(["\n:x: " + p for p in error_players])
-    await send_table_embed(message, game, table_url, author_str, invited_players_str, "Failed to Invite", error_players_str)
+    await send_table_embed(
+        message,
+        game,
+        table_url,
+        author_str,
+        invited_players_str,
+        "Failed to Invite",
+        error_players_str,
+    )
 
 
 async def find_bga_users(players, error_players):
@@ -236,7 +260,7 @@ async def get_tables_by_players(players, message, send_running_tables=True, game
     bga_account = BGAAccount()
     sent_messages = []
     for player in players:
-        if player.startswith('<@'):
+        if player.startswith("<@"):
             await message.channel.send("Not yet set up to read discord tags.")
             await bga_account.close_connection()
             return
@@ -250,8 +274,10 @@ async def get_tables_by_players(players, message, send_running_tables=True, game
         found_msg = await message.channel.send(f"Found {str(len(player_tables))} tables for {player}")
         sent_messages += [found_msg]
         tables.update(player_tables)
+
     def normalize_name(game_name):
         return re.sub("[^a-z0-7]+", "", game_name.lower())
+
     bga_games, err_msg = await get_game_list()
     if len(err_msg) > 0:
         await message.channel.send(err_msg)
@@ -274,7 +300,7 @@ async def get_tables_by_players(players, message, send_running_tables=True, game
             normalized_bga_games.append(normalize_name(table["game_name"]))
             update_games_cache(new_game)
         else:
-            game_name = game_name_list[0] 
+            game_name = game_name_list[0]
         if normalize_name(game_name) not in normalized_bga_games:
             await bga_account.close_connection()
             await message.channel.send(f"{game_name} is not a BGA game.")
@@ -309,19 +335,21 @@ async def send_table_summary(message, bga_account, table, game_name):
         gamestart = table["gamestart"]
     else:
         gamestart = table["scheduled"]
-    days_age = (datetime.datetime.utcnow()- datetime.datetime.fromtimestamp(int(gamestart))).days
+    days_age = (datetime.datetime.utcnow() - datetime.datetime.fromtimestamp(int(gamestart))).days
     percent_done, num_moves, table_url = await bga_account.get_table_metadata(table)
     percent_text = ""
-    if percent_done: # If it's at 0%, we won't get a number
+    if percent_done:  # If it's at 0%, we won't get a number
         percent_text = f"\t\tat {percent_done}%"
     p_names = []
     for p_id in table["players"]:
         p_name = table["players"][p_id]["fullname"]
         # Would include this, but current_player_nbr seems to be the opposite value of expected for a player
-        #if table["players"][p_id]["table_order"] == str(table["current_player_nbr"]):
+        # if table["players"][p_id]["table_order"] == str(table["current_player_nbr"]):
         #    p_name = '**' + p_name + ' to play**'
         p_names.append(p_name)
-    await message.channel.send(f"__{game_name}__\t\t[{', '.join(p_names)}]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\n\t\t<{table_url}>\n")
+    await message.channel.send(
+        f"__{game_name}__\t\t[{', '.join(p_names)}]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\n\t\t<{table_url}>\n",
+    )
 
 
 async def link_accounts(message, discord_id, bga_username):

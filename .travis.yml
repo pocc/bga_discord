@@ -1,0 +1,4 @@
+language: python
+install:
+  - pip install pre-commit
+script: pre-commit run

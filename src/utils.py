@@ -9,13 +9,15 @@ def is_url(url):
     except ValueError:
         return False
 
+
 async def send_help(message, help_type):
     """Send the user a help message from a file"""
     filename = "src/docs/" + help_type + "_msg.md"
     with open(filename) as f:
         text = f.read()
-    remainder = text.replace(4*" ", "\t")
+    remainder = text.replace(4 * " ", "\t")
     await send_message_partials(message.author, remainder)
+
 
 async def send_message_partials(destination, remainder):
     # Loop over text and send message parts from the remainder until remainder is no more
