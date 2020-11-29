@@ -11,6 +11,15 @@ You can add the bot to your server by [giving it access](https://discord.com/api
 
 These commands will work in any channel @BGA is on and also as direct messages to @BGA.
 
+## Available commands
+
+BGA commands start with `!bga` and TFM games start with `!tfm`
+
+Check one of the help documents for more information about each subcommand:
+
+* `bga`: [BGA Help](src/docs/bga_help_msg.md)
+* `tfm`: [TFM Help](src/docs/tfm_help_msg.md)
+
 ## Server Bot Setup
 
 **NOTE: This section is for hosting this bot yourself. To add it to your server, use [this link](https://discord.com/api/oauth2/authorize?client_id=711844812424216598&permissions=79872&scope=bot).**
@@ -45,16 +54,6 @@ Run:
 ```bash
 make run
 ```
-
-
-## Available commands
-
-BGA commands start with `!bga` and TFM games start with `!tfm`
-
-Check one of the help documents for more information about each subcommand:
-
-* `bga`: [BGA Help](src/docs/bga_help_msg.md)
-* `tfm`: [TFM Help](src/docs/tfm_help_msg.md)
 
 ## License
 
