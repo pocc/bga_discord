@@ -1,5 +1,7 @@
 # BGA Discord
 
+[![Build Status](https://travis-ci.com/pocc/bga_discord.svg?branch=master)](https://travis-ci.com/pocc/bga_discord)
+
 ![](https://i.imgur.com/KgvqoU0.png)
 
 This is a bot to help you set up [board game arena](https://boardgamearena.com) (BGA)
@@ -10,6 +12,8 @@ You can add the bot to your server by [giving it access](https://discord.com/api
 These commands will work in any channel @BGA is on and also as direct messages to @BGA.
 
 ## Server Bot Setup
+
+**NOTE: This section is for hosting this bot yourself. To add it to your server, use [this link](https://discord.com/api/oauth2/authorize?client_id=711844812424216598&permissions=79872&scope=bot).**
 
 Run the following on any VPS
 
