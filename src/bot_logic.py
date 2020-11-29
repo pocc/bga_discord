@@ -88,7 +88,7 @@ async def init_bga_game(message):
         await send_help(message, "bga_options")
     else:
         await message.channel.send(f"You entered invalid command `{command}`. "
-                                  f"Valid commands are list, link, setup, and make.")
+                                  f"Valid commands are `link`, `list`, `make`, `options`, `setup`, `tables`.")
         await send_help(message, "bga_help")
 
 
@@ -146,7 +146,7 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
     """Setup a game on BGA based on the message."""
     account, errs = await get_active_session(p1_discord_id)
     if errs:
-        message.channel.send(f"<@{p1_discord_id}>:" + errs)
+        await message.channel.send(f"<@{p1_discord_id}>:" + errs)
         return
     if account == None: # If err, fail now
         return
