@@ -7,10 +7,13 @@ import shlex
 
 import discord
 from bosspiles_integration import generate_matches_from_bosspile
-from bga_account import bga_list_games
-from bga_game_generator import get_tables_by_players, add_friends, setup_bga_account, setup_bga_game
+from bga_game_list import bga_list_games
+from bga_table_status import get_tables_by_players
+from bga_create_game import setup_bga_game
+from bga_creds_iface import setup_bga_account
+from bga_add_friend import add_friends
 from keys import TOKEN
-from tfm_game_generator import init_tfm_game
+from tfm_create_game import init_tfm_game
 from interactive_commands import trigger_interactive_response
 from utils import send_help
 
@@ -45,7 +48,7 @@ async def on_message(message):
     if message.author == client.user:
         return
     if message.content.startswith("!bga"):  # Transition to new syntax
-        message.content = message.content.replace("bga ", "")
+        message.content = message.content.replace("bga ", "").replace("make", "play")
     if any([message.content.startswith(i) for i in ["!setup", "!play", "!tables", "!help", "!options", "!tfm"]]):
         logger.debug(f"Received message {message.content}")
         try:
@@ -68,6 +71,9 @@ async def on_message(message):
         safe_to_check_timestamp = str(message.author) in contexts and "timestamp" in contexts[str(message.author)]
         if safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 30:
             await trigger_interactive_response(message, contexts, message.content.split(" ")[0][1:])
+        else:
+            await message.channel.send("Operation timed out...")
+            await trigger_interactive_response(message, contexts, "timeout")
     # Integration with Bosspiles bot
     elif message.author.id == 713362507770626149 and ":vs:" in message.content:
         await generate_matches_from_bosspile(message)
@@ -78,9 +84,12 @@ async def trigger_bga_action(message, args):
     if command == "setup" and len(args) == 3:
         bga_user, bga_passwd = args[2], args[3]
         await setup_bga_account(message, bga_user, bga_passwd)
-    elif command == "play" and len(args) >= 3:
+    elif command == "play" and len(args) >= 2:
         options = []
-        game, players = args[2], args[3:]
+        game = args[1]
+        players = []
+        if len(args) >= 3:
+            players = args[3:]
         for arg in args:
             if ":" in arg:
                 key, value = arg.split(":")[:2]

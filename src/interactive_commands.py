@@ -1,9 +1,19 @@
-"""Interact with the bot if you are missing options in your command."""
+"""Interact with the bot if you are missing options in your command.
+
+This works by changing the global `contexts` for a discord user for every message they send.
+Each message that is meaningful to the bot will change the context.
+Each different context will route them to the appropriate location.
+"""
 import time
 
 from discord_utils import send_options_embed, send_simple_embed
-from bga_account import get_game_list
-from tfm_game_generator import AVAILABLE_TFM_OPTIONS
+from bga_game_list import get_game_list
+from bga_create_game import setup_bga_game
+from tfm_create_game import AVAILABLE_TFM_OPTIONS
+from utils import normalize_name
+
+
+GAME_OPTIONS = ["Add a player", "Change a game option", "Change target channel for embed", "Finish and create game"]
 
 
 async def trigger_interactive_response(message, contexts, curr_ctx):
@@ -38,15 +48,19 @@ async def trigger_interactive_response(message, contexts, curr_ctx):
         await message.channel.send("Canceled operation")
         contexts[author] = {}
         return
+    if curr_ctx == "choose subprogram" and message.content.isdigit() and 1 <= int(message.content) <= 4:
+        curr_ctx = ["setup", "play", "tables"][int(message.content) - 1]
     if curr_ctx in ["setup", "play", "tables"] or author not in contexts:
-        contexts[author] = {"context": curr_ctx, "timestamp": time.time()}
+        contexts[author] = {"context": curr_ctx, "timestamp": time.time(), "channel": message.channel}
         in_thirty_sec_window = True
     else:
         in_thirty_sec_window = contexts[author]["timestamp"] > time.time() - 30
-    current_ctx = contexts[author]["context"]
     if in_thirty_sec_window:
         contexts[author]["timestamp"] = time.time()  # reset timer
-        if current_ctx == "setup":
+        if curr_ctx == "timeout":
+            await send_options_embed(message, "BGA bot option", ["setup", "play", "tables"])
+            contexts[author]["context"] = "choose subprogram"
+        elif curr_ctx == "setup":
             if message.content.contains("1"):
                 contexts[author]["context"] = "bga password"
                 await send_options_embed(message, "password", [])
@@ -67,43 +81,67 @@ async def trigger_interactive_response(message, contexts, curr_ctx):
             elif message.content.contains("3"):
                 contexts[author]["context"] = "tfm options"
                 await send_options_embed(message, "TFM option", AVAILABLE_TFM_OPTIONS)
-        elif current_ctx == "bga password":
+        elif curr_ctx == "bga password":
             # Set password
             pass
-        elif current_ctx == "bga options":
+        elif curr_ctx == "bga options":
             # set bga options
             pass
-        elif current_ctx == "tfm options":
+        elif curr_ctx == "tfm options":
             # set tfm options
             pass
-        elif current_ctx == "play":
+        elif curr_ctx == "play":
             await send_simple_embed(message, "Enter the name of the game you want to play")
             contexts[author]["context"] = "choose game"
-        elif current_ctx == "choose game":
+        elif curr_ctx == "choose game":
+            contexts[author]["game"] = {}
             game_name = message.content
+            normalized_name = normalize_name(game_name)
             games, errs = await get_game_list()
             if errs:
                 await message.channel.send(errs)
                 return
-            if game_name in games:
-                await send_options_embed(
-                    message,
-                    "game option",
-                    ["Add a player", "Change a game setting", "Change destination channel of embed", "Done"],
-                )
-                contexts[author]["context"] = "game option"
+            normalized_bga_games = [normalize_name(game) for game in games]
+            for bga_game in normalized_bga_games:
+                if bga_game.startswith(normalized_name):
+                    await send_options_embed(
+                        message,
+                        f"{game_name} game option",
+                        GAME_OPTIONS,
+                    )
+                    contexts[author]["game"]["name"] = game_name
+                    contexts[author]["context"] = "game option"
+            if contexts[author] == "choose game":  # If no games of the same name were found
+                await message.channel.send(f"Game `{game_name}` not found. Try again (or cancel to quit).")
+        elif curr_ctx == "game option":
+            if message.content.isdigit() and 1 <= int(message.content) <= len(GAME_OPTIONS):
+                choice = int(message.content)
+                contexts[author]["context"] = GAME_OPTIONS[choice - 1]
+                contexts[author]["game"]["players"], contexts[author]["game"]["options"] = [], []
+                title_opt = contexts[author]["context"]
+                await send_options_embed(message, title_opt, [])
             else:
-                await message.channel.send(f"Game {game_name} not found. Try again (or cancel to quit).")
-        elif current_ctx == "game option":
-            await send_options_embed(message, "BGA player name", [])
-            contexts[author]["context"] = "add player to game"
-        elif current_ctx == "add current player to game":
+                await message.channel.send(f"Enter a number between 1 and {len(GAME_OPTIONS)}")
+        elif curr_ctx == "Add a player":
+            contexts[author]["game"]["players"].append(message.content)
+            await message.channel.send("Added player " + message.content)
+        elif curr_ctx == "Change a game option":
+            contexts[author]["game"]["options"].append(message.content)
+            await message.channel.send("Added option " + message.content)
+        elif curr_ctx == "Change target channel for embed":
+            contexts[author]["channel"] = message.content
+        elif curr_ctx == "Finish and create game":
+            game = contexts[author]["game"]["name"]
+            players = contexts[author]["game"]["players"]
+            options = contexts[author]["game"]["options"]
+            await setup_bga_game(message, message.author.id, game, players, options)
+        elif curr_ctx == "add current player to game":
             # add player to game
             pass
-        elif "tables".startswith(current_ctx):
+        elif "tables".startswith(curr_ctx):
             await message.channel.send("In context tables")
         else:
-            message.channel.send(
+            await message.channel.send(
                 "No interactive contexts found. Use !setup to setup your account, !play to start a game, and !tables to check the status of a game.",
             )
     else:

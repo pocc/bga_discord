@@ -1,5 +1,6 @@
 # Via https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not
 from urllib.parse import urlparse
+import re
 
 
 def is_url(url):
@@ -39,3 +40,7 @@ async def send_message_partials(destination, remainder):
             if remainder[0] == "\t":
                 remainder = ".   " + remainder[1:]
         await destination.send(msg_part)
+
+
+def normalize_name(game_name):
+    return re.sub("[^a-z0-7]+", "", game_name.lower())

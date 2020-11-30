@@ -6,7 +6,7 @@ import re
 import shlex
 
 import aiohttp
-from creds_iface import get_discord_id
+from bga_creds_iface import get_discord_id
 from discord_utils import send_table_embed
 from utils import is_url
 from utils import send_help
