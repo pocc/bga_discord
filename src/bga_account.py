@@ -20,7 +20,7 @@ async def get_game_list():
     The url below should be accessible unauthenticated (test with curl).
     """
     oneweek = 604800
-    if time.time() - oneweek > os.path.getmtime(GAME_LIST_PATH):
+    if time.time() - oneweek < os.path.getmtime(GAME_LIST_PATH):
         with open(GAME_LIST_PATH, "r") as f:
             logger.debug("Loading game list from cache because the game list has been checked in the last week.")
             return json.loads(f.read()), ""
@@ -47,7 +47,7 @@ async def get_game_list():
 
 
 async def bga_list_games():
-    """List the games that BGA currently offers."""
+    """List the games that BGA currently offers as a string."""
     game_data, err_msg = await get_game_list()
     if len(err_msg) > 0:
         return err_msg
@@ -70,13 +70,11 @@ def update_games_cache(games):
         file_games = json.loads(file_text)
         games.update(file_games)
     with open(GAME_LIST_PATH, "w") as f:
-        f.write(json.dumps(games, indent=2))
+        f.write(json.dumps(games, indent=2) + "\n")
 
 
 class BGAAccount:
     """Account user/pass and methods to login/create games with it."""
-
-    # Select numbers for changing options in a game
 
     def __init__(self):
         self.session = aiohttp.ClientSession()
@@ -138,7 +136,7 @@ class BGAAccount:
             await self.fetch(quit_url)
 
     async def quit_playing_with_friends(self):
-        """ There is a BGA feature called "playing with friends". Remove friends from the session"""
+        """There is a BGA feature called "playing with friends". Remove friends from the session"""
         quit_url = self.base_url + "/group/group/removeAllFromGameSession.html"
         params = {"dojo.preventCache": str(int(time.time()))}
         quit_url += "?" + urllib.parse.urlencode(params)

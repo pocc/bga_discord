@@ -3,12 +3,16 @@
 import logging.handlers
 import time
 import traceback
+import shlex
 
 import discord
 from bosspiles_integration import generate_matches_from_bosspile
-from bot_logic import init_bga_game
+from bga_account import bga_list_games
+from bga_game_generator import get_tables_by_players, add_friends, setup_bga_account, setup_bga_game
 from keys import TOKEN
-from tfm_mediator import init_tfm_game
+from tfm_game_generator import init_tfm_game
+from interactive_commands import trigger_interactive_response
+from utils import send_help
 
 LOG_FILENAME = "errs"
 logger = logging.getLogger(__name__)
@@ -22,19 +26,16 @@ logger.setLevel(logging.DEBUG)
 
 intents = discord.Intents(messages=True, guilds=True, members=True)
 client = discord.Client(intents=intents)
+# Keep track of context in global variable {"<author id>": {"context": context, "timestamp": int timestamp}}
+contexts = {}
 
 
 @client.event
 async def on_ready():
     """Let the user who started the bot know that the connection succeeded."""
     logger.info(f"{client.user.name} has connected to Discord!")
-    # Create words under bot that say "Listening to !bga"
-    listening_to_help = discord.Activity(type=discord.ActivityType.listening, name="!bga")
+    listening_to_help = discord.Activity(type=discord.ActivityType.listening, name="!help")
     await client.change_presence(activity=listening_to_help)
-
-
-# Keep track of context in global variable {"<author id>": {"context": context, "timestamp": int timestamp}}
-interactive_context = {}
 
 
 @client.event
@@ -43,56 +44,64 @@ async def on_message(message):
     # Don't respond to this bot's own messages!
     if message.author == client.user:
         return
-    # Transition to new syntax
-    # if any([message.content.startswith(i) for i in ["!bga"]]):
-    #    message.content = message.content.replace("!bga make", "!play").replace("!bga setup", "!setup").replace("!bga tables", "!tables")
-    if any([message.content.startswith(i) for i in ["!setup", "!play", "!tables", "!tfm"]]):
+    if message.content.startswith("!bga"):  # Transition to new syntax
+        message.content = message.content.replace("bga ", "")
+    if any([message.content.startswith(i) for i in ["!setup", "!play", "!tables", "!help", "!options", "!tfm"]]):
         logger.debug(f"Received message {message.content}")
-        # Replace the quotes on a German keyboard with regular ones.
-        message.content = message.content.replace("„", '"').replace("“", '"')
-        if message.content.count('"') % 2 == 1:
-            await message.author.send(
-                f'You entered \n`{message.content}`\nwhich has an odd number of " characters. Please fix this and retry.',
-            )
-            return
         try:
-            if message.content.startswith("!setup"):
-                interactive_context[str(message.author)] = {"context": "username", "timestamp": time.time()}
-                # await init_bga_game(message)
-            elif message.content.startswith("!play"):
-                await init_bga_game(message)
-            elif message.content.startswith("!tables"):
-                await init_bga_game(message)
-            elif message.content.startswith("!tfm"):
+            if message.content.startswith("!tfm"):
                 await init_tfm_game(message)
+            else:
+                # Preserve command syntax and when there are missing args, go interactive
+                try:
+                    args = shlex.split(message.content.replace("'", "").replace("„", '"').replace("“", '"'))
+                except ValueError as e:
+                    message.channel.send("Problem parsing command: " + str(e))
+                await trigger_bga_action(message, args)
         except Exception as e:
             logger.error("Encountered error:" + str(e) + "\n" + str(traceback.format_exc()))
             await message.channel.send("Tell <@!234561564697559041> to fix his bga bot.")
-    # Use a context manager variable to keep track of next step for user.
-    # It's ok if this
-    if str(message.channel.type) == "private" and message.channel.me == client.user:
-        if message.content.startswith("cancel"):
-            # quit current interactive session
-            interactive_context[str(message.author)] = {}
-            return
-        data = interactive_context[str(message.author)]
-        in_thirty_sec_window = data["timestamp"] > time.time() - 30
-        if in_thirty_sec_window:
-            if data["context"] == "username":
-                await message.channel.send("In context username")
-            elif data["context"] == "password":
-                await message.channel.send("In context password")
-            elif data["context"] == "play":
-                await message.channel.send("In context choose game")
-            elif data["context"] == "tables":
-                await message.channel.send("In context tables")
-            elif data["context"] == "tables":
-                await message.channel.send("In context tables")
-        else:
-            await message.channel.send("You waited too long")
+    # Use a contexts variable to keep track of next step for user.
+    # this can be anything the user sends to the bot and needs to be parsed according to the context.
+    elif str(message.channel.type) == "private" and message.channel.me == client.user:
+        logger.debug(f"Received direct message {message.content}")
+        safe_to_check_timestamp = str(message.author) in contexts and "timestamp" in contexts[str(message.author)]
+        if safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 30:
+            await trigger_interactive_response(message, contexts, message.content.split(" ")[0][1:])
     # Integration with Bosspiles bot
     elif message.author.id == 713362507770626149 and ":vs:" in message.content:
         await generate_matches_from_bosspile(message)
+
+
+async def trigger_bga_action(message, args):
+    command = args[0][1:]
+    if command == "setup" and len(args) == 3:
+        bga_user, bga_passwd = args[2], args[3]
+        await setup_bga_account(message, bga_user, bga_passwd)
+    elif command == "play" and len(args) >= 3:
+        options = []
+        game, players = args[2], args[3:]
+        for arg in args:
+            if ":" in arg:
+                key, value = arg.split(":")[:2]
+                options.append([key, value])
+                # Options with : are not players
+                players.remove(arg)
+        discord_id = message.author.id
+        await setup_bga_game(message, discord_id, game, players, options)
+    elif command == "tables" and len(args) >= 3:
+        players = args[1:]
+        await get_tables_by_players(players, message)
+    elif command == "list":
+        message.channel.send(await bga_list_games())
+    elif command == "help":
+        await send_help(message, "bga_help")
+    elif command == "friend":
+        await add_friends(args[2:], message)
+    elif command == "options":
+        await send_help(message, "bga_options")
+    else:
+        await trigger_interactive_response(message, contexts, command)
 
 
 client.run(TOKEN)

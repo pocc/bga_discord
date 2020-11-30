@@ -1,98 +1,18 @@
 import datetime
 import logging.handlers
 import re
-import shlex
 
-from bga_mediator import bga_list_games
-from bga_mediator import BGAAccount
-from bga_mediator import get_game_list
-from bga_mediator import update_games_cache
+from bga_account import BGAAccount
+from bga_account import get_game_list
+from bga_account import update_games_cache
 from creds_iface import get_all_logins
 from creds_iface import get_discord_id
 from creds_iface import get_login
 from creds_iface import save_data
-from discord_utils import send_table_embed, interactive_embed
-from utils import send_help
+from discord_utils import send_table_embed
 
 logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)
-
-
-async def init_bga_game(message):
-    args = shlex.split(message.content)
-    if len(args) == 1:
-        await message.channel.send("Sending BGA help your way.")
-        await send_help(message, "bga_help")
-        return
-    command = args[1]
-    if command == "list":
-        retmsg = await bga_list_games()
-        message.channel.send(retmsg)
-    elif command == "setup":
-        if len(args) == 2:
-            await interactive_embed(message, "platform", ["Board Game Arena", "Terraforming Mars"])
-        else:
-            bga_user = args[2]
-            bga_passwd = args[3]
-            await setup_bga_account(message, bga_user, bga_passwd)
-    elif command == "link":
-        # expected syntax is `!bga link $discord_tag $bga_username`
-        if len(args) != 4:
-            await message.channel.send("link got the wrong number of arguments. Run `!bga` to see link examples.")
-        discord_tag = args[2]
-        id_matches = re.match(r"<@!?(\d+)>", discord_tag)
-        if not id_matches:
-            await message.channel.send(
-                "Unable to link. Syntax is `!bga link @discord_tag 'bga username'`. "
-                "Make sure that the discord tag has an @ and is purple.",
-            )
-            return
-        discord_id = id_matches[1]
-        bga_user = args[3]
-        await link_accounts(message, discord_id, bga_user)
-    elif command == "make":
-        options = []
-        if len(args) < 3:
-            await message.channel.send("make requires a BGA game. Run `!bga` to see make examples.")
-            return
-        game = args[2]
-        players = args[3:]
-        for arg in args:
-            if ":" in arg:
-                key, value = arg.split(":")[:2]
-                options.append([key, value])
-                # Options with : are not players
-                players.remove(arg)
-        discord_id = message.author.id
-        await setup_bga_game(message, discord_id, game, players, options)
-    elif command == "tables":  # Get all tables that have players in common
-        if len(args) == 2:
-            # Assume that you want to know your own tables if command is "!bga tables"
-            user_data = get_all_logins()
-            if str(message.author.id) in user_data:
-                players = [user_data[str(message.author.id)]["username"]]
-            else:
-                help_msg = (
-                    "You can only use `!bga tables` without specifying "
-                    + "player names if your discord name is linked to your BGA "
-                    + "username. Link them with `!bga link` or specify the "
-                    + "players you want to lookup tables for."
-                )
-                await message.channel.send(help_msg)
-                return
-        else:
-            players = args[2:]
-        await get_tables_by_players(players, message)
-    elif command == "friend":
-        await add_friends(args[2:], message)
-    elif command == "options":
-        await send_help(message, "bga_options")
-    else:
-        await message.channel.send(
-            f"You entered invalid command `{command}`. "
-            f"Valid commands are `link`, `list`, `make`, `options`, `setup`, `tables`.",
-        )
-        await send_help(message, "bga_help")
 
 
 async def add_friends(friends, message):
@@ -140,7 +60,7 @@ async def get_active_session(discord_id):
             None,
             f"<@{discord_id}>: You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info.",
         )
-    # bogus_password ("") used for linking accounts, but is not full account setup
+    # bogus_password ("") means no password present
     if login_info["password"] == "":
         return None, "You have to sign in to host a game. Run `!bga` to get info on setup."
     account = BGAAccount()

@@ -15,6 +15,37 @@ logger = logging.getLogger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger("aiohttp").setLevel(logging.WARN)
 
+AVAILABLE_TFM_OPTIONS = [
+    "customCorporationsList",
+    "customColoniesList",
+    "cardsBlackList",
+    "color",
+    "seed",
+    "board",
+    "players",
+    "corporateEra",
+    "communityCardsOption",
+    "prelude",
+    "venusNext",
+    "includeVenusMA",
+    "colonies",
+    "turmoil",
+    "promoCardsOption",
+    "fastModeOption",
+    "undoOption",
+    "randomMA",
+    "removeNegativeGlobalEventsOption",
+    "draftVariant",
+    "showOtherPlayersVP",
+    "solarPhaseOption",
+    "soloTR",
+    "initialDraft",
+    "shuffleMapOption",
+    "startingCorporations",
+    "beginner",
+    "handicap",
+]
+
 
 class TFMPlayer:
     def __init__(self, player_name, colors, options):
@@ -50,6 +81,25 @@ class TFMGame:
             """If it's in global_opts, override player opts. If it's in all player opts, then choose it."""
             return letter in gl or all([letter in p.options for p in pl])
 
+        special_params = {
+            "customCorporationsList": [],
+            "customColoniesList": [],
+            "cardsBlackList": [],
+            "seed": random.random(),
+        }
+        boards = {"r": "random", "h": "hellas", "e": "elysium", "t": "tharsis"}
+        if "b" in global_opts:
+            b_pos = global_opts.index("b")
+            board_letter = global_opts[b_pos + 1]
+            special_params["board"] = boards[board_letter]
+        elif "b" in all(["b" in p.options for p in players]):
+            # Use player 0 arbitrarily because they are all the same
+            b_pos = players[0].index("b")
+            board_letter = players[0].options[b_pos + 1]
+            special_params["board"] = boards[board_letter]
+        else:
+            special_params["board"] = "random"
+
         params = {
             "players": [],
             # Expansions
@@ -77,12 +127,7 @@ class TFMGame:
             "initialDraft": choose_option(global_opts, players, "i"),
             "shuffleMapOption": choose_option(global_opts, players, "m"),
         }
-        special_params = {
-            "customCorporationsList": [],
-            "customColoniesList": [],
-            "cardsBlackList": [],
-            "seed": random.random(),
-        }
+
         # default to 2 corporations
         special_params["startingCorporations"] = "2"
         if "a" in global_opts:  # num_corps should be >=1, <=6
@@ -96,18 +141,6 @@ class TFMGame:
             if num_corps.isdigit():
                 special_params["startingCorporations"] = num_corps
 
-        boards = {"r": "random", "h": "hellas", "e": "elysium", "t": "tharsis"}
-        if "b" in global_opts:
-            b_pos = global_opts.index("b")
-            board_letter = global_opts[b_pos + 1]
-            special_params["board"] = boards[board_letter]
-        elif "b" in all(["b" in p.options for p in players]):
-            # Use player 0 arbitrarily because they are all the same
-            b_pos = players[0].index("b")
-            board_letter = players[0].options[b_pos + 1]
-            special_params["board"] = boards[board_letter]
-        else:
-            special_params["board"] = "random"
         params.update(special_params)
         used_colors = []
         color_mapping = {
