@@ -47,12 +47,13 @@ async def get_game_list():
 
 
 async def bga_list_games():
-    """List the games that BGA currently offers as a string."""
+    """List the games that BGA currently offers as a list of messages less than 1000 chars."""
     game_data, err_msg = await get_game_list()
     if len(err_msg) > 0:
         return err_msg
     game_list = list(game_data.keys())
     tr_games = [g[:22] for g in game_list]
+    retlist = []
     retmsg = ""
     for i in range(len(tr_games) // 5 + 1):
         retmsg += "\n"
@@ -60,8 +61,9 @@ async def bga_list_games():
             retmsg += "{:<24}".format(game_name)
         if i % 15 == 0 and i > 0 or i == len(tr_games) // 5:
             # Need to truncate at 1000 chars because max message length for discord is 2000
-            retmsg = "```" + retmsg + "```"
-    return retmsg
+            retlist.append("```" + retmsg + "```")
+            retmsg = ""
+    return retlist
 
 
 def update_games_cache(games):

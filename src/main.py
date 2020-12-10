@@ -107,7 +107,9 @@ async def trigger_bga_action(message, args):
         players = args[1:]
         await get_tables_by_players(players, message)
     elif command == "list":
-        await message.channel.send(await bga_list_games())
+        game_sublists = await bga_list_games()
+        for sublist in game_sublists:  # All messages are 1000 chars <=
+            await message.channel.send(sublist)
     elif command == "help":
         await send_help(message, "bga_help")
     elif command == "friend":
