@@ -18,6 +18,7 @@ from interactive_commands import trigger_interactive_response
 from utils import send_help
 
 LOG_FILENAME = "errs"
+SUBCOMMANDS = ["!setup", "!play", "!tables", "!help", "!options", "!list", "!friend", "!tfm"]
 logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)
 # Add the log message handler to the logger
@@ -49,7 +50,8 @@ async def on_message(message):
         return
     if message.content.startswith("!bga"):  # Transition to new syntax
         message.content = message.content.replace("bga ", "").replace("make", "play")
-    if any([message.content.startswith(i) for i in ["!setup", "!play", "!tables", "!help", "!options", "!tfm"]]):
+        message.content = message.content.replace("bga", "help")  # If it's just !bga, do !help instead
+    if any([message.content.startswith(i) for i in SUBCOMMANDS]):
         logger.debug(f"Received message {message.content}")
         try:
             if message.content.startswith("!tfm"):
@@ -81,6 +83,9 @@ async def on_message(message):
 
 async def trigger_bga_action(message, args):
     command = args[0][1:]
+    noninteractive_commands = ["list", "help", "options"]
+    if command in noninteractive_commands:
+        contexts[message.author] = {}
     if command == "setup" and len(args) == 3:
         bga_user, bga_passwd = args[2], args[3]
         await setup_bga_account(message, bga_user, bga_passwd)
@@ -102,7 +107,7 @@ async def trigger_bga_action(message, args):
         players = args[1:]
         await get_tables_by_players(players, message)
     elif command == "list":
-        message.channel.send(await bga_list_games())
+        await message.channel.send(await bga_list_games())
     elif command == "help":
         await send_help(message, "bga_help")
     elif command == "friend":
