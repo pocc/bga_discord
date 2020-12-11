@@ -46,7 +46,7 @@ TOKEN = 'yOUR tOkeN hEre'
 Generate an encryption key with:
 
 ```bash
-python -c 'from cryptography.fernet import Fernet; print("FERNET_KEY = %s" % Fernet.generate_key())' >> keys.py
+( umask 077 && python -c 'from cryptography.fernet import Fernet; print("FERNET_KEY = %s" % Fernet.generate_key())' >> src/keys.py )
 ```
 
 Run:
