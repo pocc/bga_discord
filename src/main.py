@@ -10,7 +10,7 @@ from bosspiles_integration import generate_matches_from_bosspile
 from bga_game_list import bga_game_message_list, is_game_valid
 from bga_table_status import get_tables_by_players
 from bga_create_game import setup_bga_game
-from bga_creds_iface import setup_bga_account
+from creds_iface import setup_bga_account
 from bga_add_friend import add_friends
 from keys import TOKEN
 from tfm_create_game import init_tfm_game

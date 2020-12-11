@@ -1,10 +1,10 @@
 import logging.handlers
 import re
 
-from bga_creds_iface import get_discord_id
-from bga_creds_iface import get_login
+from creds_iface import get_discord_id
+from creds_iface import get_login
 from discord_utils import send_table_embed
-from bga_creds_iface import get_active_session, get_all_logins
+from creds_iface import get_active_session, get_all_logins
 
 logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)

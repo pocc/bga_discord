@@ -1,10 +1,10 @@
 import json
 
 from bga_account import SPEED_VALUES, MODE_VALUES, LEVEL_VALUES, KARMA_VALUES
-from bga_creds_iface import get_all_logins
+from creds_iface import get_all_logins
 from discord_utils import send_options_embed
 from tfm_create_game import AVAILABLE_TFM_OPTIONS
-from bga_creds_iface import save_data
+from creds_iface import save_data
 from keys import CONTRIBUTORS
 
 

@@ -5,7 +5,7 @@ import logging.handlers
 from bga_account import BGAAccount
 from bga_game_list import get_game_list
 from bga_game_list import update_games_cache
-from bga_creds_iface import get_discord_id
+from creds_iface import get_discord_id
 from utils import normalize_name
 
 logger = logging.getLogger(__name__)

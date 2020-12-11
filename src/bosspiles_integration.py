@@ -8,7 +8,7 @@ This integration is mostly for the BGA Discord server
 import logging
 import re
 
-from bga_creds_iface import get_all_logins
+from creds_iface import get_all_logins
 from bga_table_status import get_tables_by_players
 from bga_create_game import setup_bga_game
 
