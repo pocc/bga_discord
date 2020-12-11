@@ -70,18 +70,17 @@ async def get_tables_by_players(players, message, send_running_tables=True, game
         await sent_message.delete()
     if len(player_tables) == 0:
         # Try to convert bga names to discord names
-        players_str = "[ "
+        players_list = []
         for player_name in players:
-            player_str = ""
+            is_player_added = False
             if message.guild:
                 player_id = get_discord_id(player_name, message)
                 if player_id != -1:
-                    player_str = f"<@!{player_id}> "
-            if not player_str:
-                player_str = player_name + " "
-            players_str += player_str
-        players_str += "]"
-        await message.channel.send(f"No {game_target} tables found for players {players_str}.")
+                    players_list.append(f"<@!{player_id}>")
+                    is_player_added = True
+            elif not is_player_added:
+                players_list.append(player_name)
+        await message.channel.send(f"No {game_target} tables found for players [{', '.join(players_list)}].")
     await bga_account.close_connection()
 
 

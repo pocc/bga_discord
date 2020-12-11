@@ -14,22 +14,29 @@ def get_discord_id(bga_name, message):
     for discord_id in users:
         if users[discord_id]["username"].lower() == bga_name.lower():
             return discord_id
-    # Search for discord id if BGA name == discord nickname
-    for member in message.guild.members:
-        if member.display_name.lower().startswith(bga_name.lower()):
-            return member.id
+    # Search for discord id if BGA name == discord nickname and it's not a private DM
+    if str(message.channel.type) != "private":
+        for member in message.guild.members:
+            if member.display_name.lower().startswith(bga_name.lower()):
+                return member.id
     return -1
 
 
-def save_data(discord_id, bga_userid, bga_username, bga_password):
+def save_data(discord_id, bga_userid="", username="", password="", options=[]):
     """save data."""
     cipher_suite = Fernet(FERNET_KEY)
     user_json = get_all_logins()
-    user_json[str(discord_id)] = {
-        "bga_userid": bga_userid,
-        "username": bga_username,
-        "password": bga_password,
-    }
+    if bga_userid:
+        user_json[str(discord_id)]["bga_userid"] = bga_userid
+    if username:
+        user_json[str(discord_id)]["username"] = username
+    if password:
+        user_json[str(discord_id)]["password"] = password
+    if options:
+        if "bga options" not in user_json[str(discord_id)]:
+            user_json[str(discord_id)]["bga options"] = {}
+        for option in options:
+            user_json[str(discord_id)]["bga options"][option] = options[option]
     updated_text = json.dumps(user_json)
     reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
     with open("src/bga_keys", "wb") as f:
@@ -70,7 +77,7 @@ async def setup_bga_account(message, bga_username, bga_password):
     await account.logout()
     await account.close_connection()
     if logged_in:
-        save_data(discord_id, player_id, bga_username, bga_password)
+        save_data(discord_id, bga_userid=player_id, username=bga_username, password=bga_password)
         await message.channel.send(f"Account {bga_username} setup successfully.")
     else:
         await message.author.send(

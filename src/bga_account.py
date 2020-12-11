@@ -13,6 +13,39 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger("aiohttp").setLevel(logging.WARN)
 
 
+MODE_TYPES = {
+    "normal": 0,
+    "training": 1,
+}
+MODE_VALUES = list(MODE_TYPES.keys())
+SPEED_TYPES = {
+    "fast": 0,
+    "normal": 1,
+    "slow": 2,
+    "24/day": 10,
+    "12/day": 11,
+    "8/day": 12,
+    "4/day": 13,
+    "3/day": 14,
+    "2/day": 15,
+    "1/day": 17,
+    "1/2days": 19,
+    "nolimit": 20,
+}
+SPEED_VALUES = list(SPEED_TYPES.keys())
+KARMA_TYPES = {"0": 0, "50": 1, "65": 2, "75": 3, "85": 4}
+KARMA_VALUES = list(KARMA_TYPES.keys())
+LEVEL_VALUES = [
+    "beginner",
+    "apprentice",
+    "average",
+    "good",
+    "strong",
+    "expert",
+    "master",
+]
+
+
 class BGAAccount:
     """Account user/pass and methods to login/create games with it."""
 
@@ -162,7 +195,7 @@ class BGAAccount:
         defaults = {
             "mode": "normal",
             "speed": "1/day",
-            "presentation": "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥",
+            "presentation": "Created by the discord BGA bot (https://github.com/pocc/bga_discord)",
             "minrep": "0",
         }
         # options will overwrite defaults if they are there
@@ -176,60 +209,35 @@ class BGAAccount:
             if option == "mode":
                 option_data["path"] = "/table/table/changeoption.html"
                 mode_name = updated_options[option]
-                mode_types = {"normal": 0, "training": 1}
-                if mode_name not in list(mode_types.keys()):
+                if mode_name not in list(MODE_TYPES.keys()):
                     return f"Valid modes are training and normal. You entered {mode_name}."
-                mode_id = mode_types[mode_name]
+                mode_id = MODE_TYPES[mode_name]
                 option_data["params"] = {"id": 201, "value": mode_id}
             elif option == "speed":
                 option_data["path"] = "/table/table/changeoption.html"
                 speed_name = updated_options[option]
-                speed_values = {
-                    "fast": 0,
-                    "normal": 1,
-                    "slow": 2,
-                    "24/day": 10,
-                    "12/day": 11,
-                    "8/day": 12,
-                    "4/day": 13,
-                    "3/day": 14,
-                    "2/day": 15,
-                    "1/day": 17,
-                    "1/2days": 19,
-                    "nolimit": 20,
-                }
-                if speed_name not in list(speed_values.keys()):
+                if speed_name not in list(SPEED_TYPES.keys()):
                     return f"{speed_name} is not a valid speed. Check !bga options."
-                speed_id = speed_values[speed_name]
+                speed_id = SPEED_TYPES[speed_name]
                 option_data["params"] = {"id": 200, "value": speed_id}
             elif option == "minrep":
                 option_data["path"] = "/table/table/changeTableAccessReputation.html"
-                karma_numbers = {"0": 0, "50": 1, "65": 2, "75": 3, "85": 4}
-                if value not in list(karma_numbers.keys()):
+                if value not in list(KARMA_TYPES.keys()):
                     return f"Invalid minimum karma {value}. Valid values are 0, 50, 65, 75, 85."
-                option_data["params"] = {"karma": karma_numbers[value]}
+                option_data["params"] = {"karma": KARMA_TYPES[value]}
             elif option == "presentation":
                 # No error checking is necessary as every string is valid.
                 option_data["path"] = "/table/table/setpresentation.html"
                 option_data["params"] = {"value": updated_options[option]}
             elif option == "levels":
-                valid_levels = [
-                    "beginner",
-                    "apprentice",
-                    "average",
-                    "good",
-                    "strong",
-                    "expert",
-                    "master",
-                ]
                 if "-" not in value:
                     return "levels requires a dash between levels like `good-strong`."
                 [min_level, max_level] = value.lower().split("-")
-                if min_level not in valid_levels:
-                    return f"Min level {min_level} is not a valid level ({','.join(valid_levels)})"
-                if max_level not in valid_levels:
-                    return f"Max level {max_level} is not a valid level ({','.join(valid_levels)})"
-                level_enum = {valid_levels[i]: i for i in range(len(valid_levels))}
+                if min_level not in LEVEL_VALUES:
+                    return f"Min level {min_level} is not a valid level ({','.join(LEVEL_VALUES)})"
+                if max_level not in LEVEL_VALUES:
+                    return f"Max level {max_level} is not a valid level ({','.join(LEVEL_VALUES)})"
+                level_enum = {LEVEL_VALUES[i]: i for i in range(len(LEVEL_VALUES))}
                 min_level_num = level_enum[min_level]
                 max_level_num = level_enum[max_level]
                 level_keys = {}

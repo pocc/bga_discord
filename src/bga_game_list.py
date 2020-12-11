@@ -7,6 +7,9 @@ import time
 
 import aiohttp
 
+from utils import normalize_name
+
+
 logger = logging.getLogger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger("aiohttp").setLevel(logging.WARN)
@@ -15,15 +18,19 @@ logging.getLogger("aiohttp").setLevel(logging.WARN)
 GAME_LIST_PATH = "src/bga_game_list.json"
 
 
+async def get_game_list_from_cache():
+    with open(GAME_LIST_PATH, "r") as f:
+        logger.debug("Loading game list from cache because the game list has been checked in the last week.")
+        return json.loads(f.read()), ""
+
+
 async def get_game_list():
     """Get the list of games and numbers BGA assigns to each game.
     The url below should be accessible unauthenticated (test with curl).
     """
     oneweek = 604800
     if time.time() - oneweek < os.path.getmtime(GAME_LIST_PATH):
-        with open(GAME_LIST_PATH, "r") as f:
-            logger.debug("Loading game list from cache because the game list has been checked in the last week.")
-            return json.loads(f.read()), ""
+        return await get_game_list_from_cache()
     url = "https://boardgamearena.com/gamelist?section=all"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
@@ -46,8 +53,8 @@ async def get_game_list():
             return games, ""
 
 
-async def bga_list_games():
-    """List the games that BGA currently offers as a list of messages less than 1000 chars."""
+async def bga_game_message_list():
+    """List the games that BGA currently offers as a list of str messages less than 1000 chars."""
     game_data, err_msg = await get_game_list()
     if len(err_msg) > 0:
         return err_msg
@@ -73,3 +80,13 @@ def update_games_cache(games):
         games.update(file_games)
     with open(GAME_LIST_PATH, "w") as f:
         f.write(json.dumps(games, indent=2) + "\n")
+
+
+async def is_game_valid(game):
+    # Check if any words are games
+    games, errs = await get_game_list()
+    if errs:
+        games, errs = get_game_list_from_cache()
+    normalized_games = [normalize_name(g) for g in games]
+    normalized_game = normalize_name(game)
+    return normalized_game in normalized_games

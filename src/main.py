@@ -7,18 +7,18 @@ import shlex
 
 import discord
 from bosspiles_integration import generate_matches_from_bosspile
-from bga_game_list import bga_list_games
+from bga_game_list import bga_game_message_list, is_game_valid
 from bga_table_status import get_tables_by_players
 from bga_create_game import setup_bga_game
 from bga_creds_iface import setup_bga_account
 from bga_add_friend import add_friends
 from keys import TOKEN
 from tfm_create_game import init_tfm_game
-from interactive_commands import trigger_interactive_response
+from menu_root import trigger_interactive_response
 from utils import send_help
 
 LOG_FILENAME = "errs"
-SUBCOMMANDS = ["!setup", "!play", "!tables", "!help", "!options", "!list", "!friend", "!tfm"]
+SUBCOMMANDS = ["!setup", "!play", "!status", "!help", "!options", "!list", "!friend", "!tfm"]
 logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)
 # Add the log message handler to the logger
@@ -49,7 +49,7 @@ async def on_message(message):
     if message.author == client.user:
         return
     if message.content.startswith("!bga"):  # Transition to new syntax
-        message.content = message.content.replace("bga ", "").replace("make", "play")
+        message.content = message.content.replace("bga ", "").replace("make", "play").replace("tables", "status")
         message.content = message.content.replace("bga", "help")  # If it's just !bga, do !help instead
     if any([message.content.startswith(i) for i in SUBCOMMANDS]):
         logger.debug(f"Received message {message.content}")
@@ -72,52 +72,57 @@ async def on_message(message):
         logger.debug(f"Received direct message {message.content}")
         safe_to_check_timestamp = str(message.author) in contexts and "timestamp" in contexts[str(message.author)]
         if safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 30:
-            await trigger_interactive_response(message, contexts, message.content.split(" ")[0][1:])
+            await trigger_interactive_response(message, contexts, message.content.split(" ")[0][1:], [])
         else:
             await message.channel.send("Operation timed out...")
-            await trigger_interactive_response(message, contexts, "timeout")
+            await trigger_interactive_response(message, contexts, "timeout", [])
     # Integration with Bosspiles bot
     elif message.author.id == 713362507770626149 and ":vs:" in message.content:
         await generate_matches_from_bosspile(message)
 
 
 async def trigger_bga_action(message, args):
+    author = str(message.author)
     command = args[0][1:]
+    args = args[1:]  # remove the command from args
     noninteractive_commands = ["list", "help", "options"]
     if command in noninteractive_commands:
-        contexts[message.author] = {}
-    if command == "setup" and len(args) == 3:
-        bga_user, bga_passwd = args[2], args[3]
+        contexts[author] = {}
+    if command == "setup" and len(args) == 2:
+        bga_user, bga_passwd = args[1], args[2]
         await setup_bga_account(message, bga_user, bga_passwd)
     elif command == "play" and len(args) >= 2:
-        options = []
-        game = args[1]
-        players = []
-        if len(args) >= 3:
-            players = args[3:]
+        options = {}
+        game = args[0]
+        players = args[1:]
         for arg in args:
             if ":" in arg:
                 key, value = arg.split(":")[:2]
-                options.append([key, value])
+                options[key] = value
                 # Options with : are not players
                 players.remove(arg)
         discord_id = message.author.id
         await setup_bga_game(message, discord_id, game, players, options)
-    elif command == "tables" and len(args) >= 3:
-        players = args[1:]
-        await get_tables_by_players(players, message)
+    elif command == "status" and len(args) >= 2:
+        game = ""  # if game isn't specified, then bot will search for all games
+        for arg in args:
+            if await is_game_valid(arg):
+                game = arg
+                args.remove(game)
+        players = args  # remaining args will all of the players
+        await get_tables_by_players(players, message, game_target=game)
+    elif command == "friend" and len(args) >= 2:
+        await add_friends(args[1:], message)
     elif command == "list":
-        game_sublists = await bga_list_games()
+        game_sublists = await bga_game_message_list()
         for sublist in game_sublists:  # All messages are 1000 chars <=
             await message.channel.send(sublist)
     elif command == "help":
         await send_help(message, "bga_help")
-    elif command == "friend":
-        await add_friends(args[2:], message)
     elif command == "options":
         await send_help(message, "bga_options")
     else:
-        await trigger_interactive_response(message, contexts, command)
+        await trigger_interactive_response(message, contexts, command, args)
 
 
 client.run(TOKEN)

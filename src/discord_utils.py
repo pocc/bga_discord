@@ -27,26 +27,32 @@ async def send_table_embed(message, game, desc, author, players, second_title, s
     await message.channel.send(embed=retmsg)
 
 
-async def send_options_embed(message, opt_type, options, cancellable=True):
+async def send_options_embed(message, opt_type, options, description="", cancellable=True):
     """Ask the user which option they want and return the number."""
     options_text = ""
     for i in range(len(options)):
         option = options[i]
-        options_text += f"\n**{i+1}** {option}"
+        options_text += f"\n**{i+1}** {option}"  # options start at 1
     retmsg = discord.Embed(
         title=f"Choose the {opt_type} with a number",
-        description=options_text,
         color=3447003,
     )
+    retmsg.add_field(name="Options", value=options_text, inline=False)
+    if description:
+        retmsg.description = options_text
     if cancellable:
         retmsg.set_footer(text="Type cancel to quit")
     await message.author.send(embed=retmsg)
 
 
-async def send_simple_embed(message, title):
+async def send_simple_embed(message, title, description="", fields={}):
     retmsg = discord.Embed(
         title=title,
         color=3447003,
     )
+    if description:
+        retmsg.description = description
+    for field in fields:
+        retmsg.add_field(name=field, value=fields[field], inline=False)
     retmsg.set_footer(text="Type cancel to quit")
     await message.author.send(embed=retmsg)
