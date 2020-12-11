@@ -23,7 +23,7 @@ def get_discord_id(bga_name, message):
     return -1
 
 
-def save_data(discord_id, bga_userid="", username="", password="", options=[]):
+def save_data(discord_id, bga_userid="", username="", password="", bga_global_options=[], bga_game_options={}):
     """save data."""
     cipher_suite = Fernet(FERNET_KEY)
     user_json = get_all_logins()
@@ -33,11 +33,17 @@ def save_data(discord_id, bga_userid="", username="", password="", options=[]):
         user_json[str(discord_id)]["username"] = username
     if password:
         user_json[str(discord_id)]["password"] = password
-    if options:
+    if bga_global_options:
         if "bga options" not in user_json[str(discord_id)]:
             user_json[str(discord_id)]["bga options"] = {}
-        for option in options:
-            user_json[str(discord_id)]["bga options"][option] = options[option]
+        user_json[str(discord_id)]["bga options"].update(bga_global_options)
+    if bga_game_options:
+        if "bga game options" not in user_json[str(discord_id)]:
+            user_json[str(discord_id)]["bga game options"] = {}
+        game_name = list(bga_game_options.keys())[0]
+        if game_name not in user_json[str(discord_id)]["bga game options"]:
+            user_json[str(discord_id)]["bga game options"][game_name] = {}
+        user_json[str(discord_id)]["bga game options"][game_name].update(bga_game_options[game_name])
     updated_text = json.dumps(user_json)
     reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
     with os.fdopen(os.open("src/bga_keys", os.O_WRONLY | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR), "wb") as f:

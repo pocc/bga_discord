@@ -4,7 +4,7 @@ from bga_game_list import get_game_list
 from bga_create_game import setup_bga_game
 from utils import normalize_name
 from discord_utils import send_options_embed, send_simple_embed
-from cmd_sub_setup import ctx_bga_options_menu, ctx_bga_options
+from cmd_sub_setup import ctx_bga_options_menu, ctx_bga_parse_options
 from bga_account import MODE_VALUES, SPEED_VALUES, KARMA_VALUES, LEVEL_VALUES
 
 
@@ -22,7 +22,7 @@ async def ctx_play(message, contexts, args):
         await ctx_add_a_player(message, contexts, args)
         await send_game_options(message, contexts)
     elif context == "change bga option":
-        await ctx_bga_options(message, contexts)
+        await ctx_bga_parse_options(message, contexts)
     elif context == "change channel":
         await ctx_change_target_channel_for_embed(message, contexts, args)
         await send_game_options(message, contexts)

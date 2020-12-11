@@ -9,13 +9,14 @@ You can run any command interactively by specifying only the command, like `!set
     List all of the 100+ games on Board Game Arena
 
 ## **setup bga_username bga_password**
-    setup is used to save your BGA account details.
-    This bot will delete this message after you send it.
-    If either username or password has spaces, use quotes.
+    setup is used to save your BGA username and password so
+    this bot can create game tables on your behalf. This bot
+    will delete this message after you send it if it is sent
+    on a public channel. If either username/password has spaces,
+    use quotes.
 
-    This bot will remember usernames and passwords. To delete
-    your stored username, password, or options, set them to
-    something else using the interactive command `!setup`.
+    To delete your stored username, password, or options, set them to
+    something else using the command `!setup` or change them on BGA.
 
 ## **play game user1 user2...**
     play is used to create games on BGA using the account details from setup.

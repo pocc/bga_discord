@@ -5,6 +5,7 @@ from creds_iface import get_discord_id
 from creds_iface import get_login
 from discord_utils import send_table_embed
 from creds_iface import get_active_session, get_all_logins
+from utils import normalize_name
 
 logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)
@@ -19,7 +20,12 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
     if account is None:
         return
     # Use user prefs set in !setup if set
-    user_prefs = get_all_logins()[str(message.author.id)]["bga options"]
+    user_data = get_all_logins()[str(message.author.id)]
+    user_prefs = user_data["bga options"]
+    all_game_prefs = user_data["bga game options"]
+    game_name = normalize_name(game)
+    if game_name in all_game_prefs:  # game prefs should override global prefs
+        user_prefs.update(all_game_prefs[game_name])
     options.update(user_prefs)
     table_msg = await message.channel.send("Creating table...")
     await create_bga_game(message, account, game, players, p1_discord_id, options)

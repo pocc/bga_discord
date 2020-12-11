@@ -34,7 +34,7 @@ async def send_options_embed(message, opt_type, options, description="", cancell
         option = options[i]
         options_text += f"\n**{i+1}** {option}"  # options start at 1
     retmsg = discord.Embed(
-        title=f"Choose the {opt_type} with a number",
+        title=f"Choose a {opt_type} number",
         color=3447003,
     )
     retmsg.add_field(name="Options", value=options_text, inline=False)
