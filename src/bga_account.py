@@ -194,9 +194,7 @@ class BGAAccount:
         # Set defaults if they're not present
         defaults = {
             "mode": "normal",
-            "speed": "1/day",
             "presentation": "Created by the discord BGA bot (https://github.com/pocc/bga_discord)",
-            "minrep": "0",
         }
         # options will overwrite defaults if they are there
         defaults.update(options)
