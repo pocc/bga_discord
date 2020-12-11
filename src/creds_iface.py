@@ -79,7 +79,9 @@ async def setup_bga_account(message, bga_username, bga_password):
     await account.close_connection()
     if logged_in:
         save_data(discord_id, bga_userid=player_id, username=bga_username, password=bga_password)
-        await message.channel.send(f"Account {bga_username} setup successfully.")
+        await message.channel.send(
+            f"Account {bga_username} setup successfully. This bot will store your username and password to make tables on your behalf.",
+        )
     else:
         await message.author.send(
             'Unable to setup account because of bad username or password. Try putting quotes (") around either if there are spaces or special characters.',

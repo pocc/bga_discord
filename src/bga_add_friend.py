@@ -1,6 +1,6 @@
 """Functions for adding friends on BGA."""
 
-from bga_creds_iface import get_active_session
+from creds_iface import get_active_session
 
 
 async def add_friends(friends, message):

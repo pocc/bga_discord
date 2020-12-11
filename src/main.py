@@ -52,7 +52,8 @@ async def on_message(message):
         message.content = message.content.replace("bga ", "").replace("make", "play").replace("tables", "status")
         message.content = message.content.replace("bga", "help")  # If it's just !bga, do !help instead
     if any([message.content.startswith(i) for i in SUBCOMMANDS]):
-        logger.debug(f"Received message {message.content}")
+        if not message.content.contains("setup"):  # Don't log passwords
+            logger.debug(f"Received message {message.content}")
         try:
             if message.content.startswith("!tfm"):
                 await init_tfm_game(message)
@@ -69,7 +70,8 @@ async def on_message(message):
     # Use a contexts variable to keep track of next step for user.
     # this can be anything the user sends to the bot and needs to be parsed according to the context.
     elif str(message.channel.type) == "private" and message.channel.me == client.user:
-        logger.debug(f"Received direct message {message.content}")
+        if not message.content.contains("setup"):  # Don't log passwords
+            logger.debug(f"Received direct message {message.content}")
         safe_to_check_timestamp = str(message.author) in contexts and "timestamp" in contexts[str(message.author)]
         if safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 30:
             await trigger_interactive_response(message, contexts, message.content.split(" ")[0][1:], [])
