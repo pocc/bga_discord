@@ -8,9 +8,9 @@ This integration is mostly for the BGA Discord server
 import logging
 import re
 
-from bot_logic import get_all_logins
-from bot_logic import get_tables_by_players
-from bot_logic import setup_bga_game
+from bga_creds_iface import get_all_logins
+from bga_table_status import get_tables_by_players
+from bga_create_game import setup_bga_game
 
 logger = logging.getLogger(__name__)
 
