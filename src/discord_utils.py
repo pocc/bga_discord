@@ -39,7 +39,7 @@ async def send_options_embed(message, opt_type, options, description="", cancell
     )
     retmsg.add_field(name="Options", value=options_text, inline=False)
     if description:
-        retmsg.description = options_text
+        retmsg.description = description
     if cancellable:
         retmsg.set_footer(text="Type cancel to quit")
     await message.author.send(embed=retmsg)

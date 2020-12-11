@@ -71,7 +71,7 @@ async def create_bga_game(message, bga_account, game, players, p1_id, options):
                 invited_players.append(f"{discord_tag} (BGA {bga_name})")
             else:
                 invited_players.append(
-                    f"(BGA {bga_name}) needs to run `!bga link <discord user> <bga user>` on discord (discord tag not found)",
+                    f"(BGA {bga_name}) needs to run `!setup` and add BGA settings",
                 )
     author_str = f"\n:crown: <@!{p1_id}> (BGA {author_bga})"
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
@@ -104,7 +104,7 @@ async def find_bga_users(players, error_players):
                 bga_discord_user_map[bga_player["username"]] = players[i]
             else:
                 # This should be non-blocking as not everyone will have it set up
-                error_players.append(f"{players[i]} needs to run `!bga link <discord user> <bga user>` on discord")
+                error_players.append(f"{players[i]} needs to run `!setup` and add BGA settings")
         else:
             bga_discord_user_map[players[i]] = ""
     return bga_discord_user_map

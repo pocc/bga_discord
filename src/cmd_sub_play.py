@@ -62,7 +62,13 @@ async def ctx_play(message, contexts, args):
 
 
 async def ctx_choose_game(message, contexts, args):
-    contexts[str(message.author)]["game"] = {"players": [], "name": "", "options": {}}
+    contexts[str(message.author)]["game"] = {"players": [message.author.name], "name": "", "options": {}}
+    if str(message.channel.type) == "private":
+        contexts[str(message.author)]["game"]["channel"] = "DM with Bot"
+        contexts[str(message.author)]["game"]["channel_id"] = message.channel.id
+    else:
+        contexts[str(message.author)]["game"]["channel"] = message.channel.name
+        contexts[str(message.author)]["game"]["channel_id"] = message.channel.id
     game_name = message.content
     normalized_name = normalize_name(game_name)
     games, errs = await get_game_list()
@@ -83,11 +89,12 @@ async def send_game_options(message, contexts, game_name=""):
         game_name = contexts[str(message.author)]["game"]["name"]
     players = contexts[str(message.author)]["game"]["players"]
     options = contexts[str(message.author)]["game"]["options"]
+    channel = contexts[str(message.author)]["game"]["channel"]
     await send_options_embed(
         message,
         f"{game_name} game option",
         GAME_OPTIONS,
-        description=f"Players: {players}\nOptions: {options}",
+        description=f"Players: {players}\nOptions: {options}\nChannel: {channel}",
     )
     contexts[str(message.author)]["context"] = "game option"
 

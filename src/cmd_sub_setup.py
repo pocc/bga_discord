@@ -1,4 +1,7 @@
+import json
+
 from bga_account import SPEED_VALUES, MODE_VALUES, LEVEL_VALUES, KARMA_VALUES
+from bga_creds_iface import get_all_logins
 from discord_utils import send_options_embed
 from tfm_create_game import AVAILABLE_TFM_OPTIONS
 from bga_creds_iface import save_data
@@ -46,7 +49,11 @@ async def ctx_setup(message, contexts, args):
 
 async def send_main_setup_menu(message, contexts):
     opt_type = "option"
-    desc = ""  # Should be current data we have on user
+    user_data = get_all_logins()[str(message.author.id)]
+    desc = f"User: {user_data['username']}\nPassword: {user_data['password']}"
+    if "bga options" in user_data:
+        option_str = json.dumps(user_data["bga options"], indent=2).replace("\n ", "\n> ")
+        desc += f"\nOptions: {option_str}"
     options = [
         "Set Board Game Arena username",
         "Set Board Game Arena password",
@@ -65,7 +72,7 @@ async def parse_setup_menu(message, contexts):
         contexts[str(message.author)]["context"] = "bga password"
         await message.channel("Enter your BGA password")
     elif message.content == "3":
-        ctx_bga_options_menu(message, contexts)
+        await ctx_bga_options_menu(message, contexts)
     elif message.content == "4":
         contexts[str(message.author)]["context"] = "tfm options"
         await send_options_embed(message, "TFM option", AVAILABLE_TFM_OPTIONS)
