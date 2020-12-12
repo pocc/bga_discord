@@ -54,7 +54,7 @@ async def trigger_interactive_response(message, contexts, curr_ctx, args):
         return
     if curr_ctx == "choose subprogram" and message.content.isdigit() and 1 <= int(message.content) <= 4:
         curr_ctx = [ctx_setup, ctx_play, ctx_status][int(message.content) - 1]
-    if curr_ctx in ["setup", "play", "status"] or author not in contexts:
+    if curr_ctx in ["setup", "play", "status", "friend"] or author not in contexts:
         contexts[author] = {
             "subcommand": curr_ctx,
             "context": "",

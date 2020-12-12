@@ -11,6 +11,7 @@ import re
 from creds_iface import get_all_logins
 from bga_table_status import get_tables_by_players
 from bga_create_game import setup_bga_game
+from bga_game_list import is_game_valid
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,9 @@ async def generate_matches_from_bosspile(message):
     game_name = re.sub(r"[^a-zA-Z0-9]+", "", game_name)  # Delete any non-ascii characters
     # Channels are misnamed
     game_name = game_name.replace("raceftg", "raceforthegalaxy").replace("rollftg", "rollforthegalaxy")
+    # If game isn't a BGA game, then quit this integration
+    if not is_game_valid(game_name):
+        return
     # There shouldn't be diamonds in the vs matchups
     current_matches = re.findall(":hourglass: ([a-zA-Z0-9 ]+)[^:]*? :vs: ([a-zA-Z0-9 ]+)", message.content)
     if current_matches:

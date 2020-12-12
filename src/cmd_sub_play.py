@@ -1,8 +1,7 @@
 """Subcommands for choosing a game to play
 """
-from bga_game_list import get_game_list
+from bga_game_list import is_game_valid
 from bga_create_game import setup_bga_game
-from utils import normalize_name
 from discord_utils import send_options_embed, send_simple_embed
 from cmd_sub_setup import ctx_bga_options_menu, ctx_bga_parse_options
 from bga_account import MODE_VALUES, SPEED_VALUES, KARMA_VALUES, LEVEL_VALUES
@@ -13,11 +12,18 @@ GAME_OPTIONS = ["finish and create game", "add a player", "change a game option"
 
 async def ctx_play(message, contexts, args):
     context = contexts[str(message.author)]["context"]
+    # If there's a valid game name, don't ask for it
+    game_name = ""
+    for arg in args:
+        if await is_game_valid(arg):
+            game_name = arg
+            context = "choose game"
+            break
     if context == "":
         await send_simple_embed(message, "Enter the name of the game you want to play")
         contexts[str(message.author)]["context"] = "choose game"
     elif context == "choose game":
-        await ctx_choose_game(message, contexts, args)
+        await ctx_choose_game(message, contexts, game_name)
     elif context == "add player":
         await ctx_add_a_player(message, contexts, args)
         await send_game_options(message, contexts)
@@ -61,25 +67,20 @@ async def ctx_play(message, contexts, args):
             await message.channel.send(f"Invalid number sent. Needs to be between 1 and {len(GAME_OPTIONS)}")
 
 
-async def ctx_choose_game(message, contexts, args):
-    contexts[str(message.author)]["game"] = {"players": [message.author.name], "name": "", "options": {}}
+async def ctx_choose_game(message, contexts, game_name):
+    contexts[str(message.author)]["game"] = {"players": [message.author.name], "name": game_name, "options": {}}
     if str(message.channel.type) == "private":
         contexts[str(message.author)]["game"]["channel"] = "DM with Bot"
         contexts[str(message.author)]["game"]["channel_id"] = message.channel.id
     else:
         contexts[str(message.author)]["game"]["channel"] = message.channel.name
         contexts[str(message.author)]["game"]["channel_id"] = message.channel.id
-    game_name = message.content
-    normalized_name = normalize_name(game_name)
-    games, errs = await get_game_list()
-    if errs:
-        await message.channel.send(errs)
-        return
-    normalized_bga_games = [normalize_name(game) for game in games]
-    for bga_game in normalized_bga_games:
-        if bga_game.startswith(normalized_name):
-            await send_game_options(message, contexts, game_name=game_name)
-            contexts[str(message.author)]["game"]["name"] = game_name
+    if not game_name:
+        game_name = message.content
+    if await is_game_valid(game_name):
+        # SEND THE GAME OPTIONS if it's a valid game
+        await send_game_options(message, contexts, game_name=game_name)
+        contexts[str(message.author)]["game"]["name"] = game_name
     if contexts[str(message.author)] == "choose game":  # If no games of the same name were found
         await message.channel.send(f"Game `{game_name}` not found. Try again (or cancel to quit).")
 

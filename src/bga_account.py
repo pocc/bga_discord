@@ -194,7 +194,7 @@ class BGAAccount:
         # Set defaults if they're not present
         defaults = {
             "mode": "normal",
-            "presentation": "Created by the discord BGA bot (https://github.com/pocc/bga_discord)",
+            "presentation": "Made by discord BGA bot (github.com/pocc/bga_discord)",
         }
         # options will overwrite defaults if they are there
         defaults.update(options)

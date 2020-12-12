@@ -21,8 +21,13 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
         return
     # Use user prefs set in !setup if set
     user_data = get_all_logins()[str(message.author.id)]
-    user_prefs = user_data["bga options"]
-    all_game_prefs = user_data["bga game options"]
+    user_prefs = {}
+    all_game_prefs = {}
+    # bga options and bga game options aren't necessarily defined
+    if "bga options" in user_data:
+        user_prefs = user_data["bga options"]
+    if "bga game options" in user_data:
+        all_game_prefs = user_data["bga game options"]
     game_name = normalize_name(game)
     if game_name in all_game_prefs:  # game prefs should override global prefs
         user_prefs.update(all_game_prefs[game_name])
@@ -77,7 +82,7 @@ async def create_bga_game(message, bga_account, game, players, p1_id, options):
                 invited_players.append(f"{discord_tag} (BGA {bga_name})")
             else:
                 invited_players.append(
-                    f"(BGA {bga_name}) needs to run `!setup` and add BGA settings",
+                    f"(BGA {bga_name}) needs to run `!setup` to add BGA settings",
                 )
     author_str = f"\n:crown: <@!{p1_id}> (BGA {author_bga})"
     invited_players_str = "".join(["\n:white_check_mark: " + p for p in invited_players])
