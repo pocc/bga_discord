@@ -71,7 +71,7 @@ async def trigger_interactive_response(message, contexts, curr_ctx, args):
             if message.content.isdigit() and "1" <= message.content <= "3":
                 contexts[author]["subcommand"] = ["setup", "play", "status"][int(message.content) - 1]
             else:
-                message.channel.send("Enter a number between 1 and 3 (see embed above)")
+                await message.channel.send("Enter a number between 1 and 3 (see embed above)")
                 return
         if contexts[author]["subcommand"] == "timeout":
             await send_options_embed(message, "BGA bot option", ["setup", "play", "status"])
