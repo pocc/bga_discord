@@ -30,7 +30,11 @@ Run the following on any VPS
 pip install -r requirements.txt
 ```
 
-Follow the steps required to [set up a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) with the following permissions:
+Follow the steps required to [set up a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) with the following privileged gateway intents:
+
+- Server Members Intent
+
+Add the following permissions:
 
 - Send Messages
 - Send TTS Messages
