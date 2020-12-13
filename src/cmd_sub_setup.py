@@ -78,14 +78,14 @@ async def send_main_setup_menu(message, contexts):
         user_data = get_all_logins()[str(message.author.id)]
     except KeyError:
         user_data = {}
-    if 'username' in user_data:
+    if "username" in user_data:
         desc = f"**User**: {user_data['username']}"
     else:
-        desc = f"**User**: [*unset*]"
-    if 'password' in user_data:
-        desc += f"\n**Password**: [*secret*]"
+        desc = "**User**: [*unset*]"
+    if "password" in user_data:
+        desc += "\n**Password**: [*secret*]"
     else:
-        desc += f"\n**Password**: [*unset*]"
+        desc += "\n**Password**: [*unset*]"
     if "bga options" in user_data:
         option_str = json.dumps(user_data["bga options"], indent=2).replace("\n ", "\n> ")
         desc += f"\n__BGA Global Options__: {option_str}"
