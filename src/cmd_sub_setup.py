@@ -7,7 +7,7 @@ from discord_utils import send_options_embed
 from tfm_create_game import AVAILABLE_TFM_OPTIONS
 from creds_iface import save_data
 from keys import CONTRIBUTORS
-from utils import normalize_name
+from utils import normalize_name, reset_context
 
 
 async def ctx_setup(message, contexts, args):
@@ -24,8 +24,10 @@ async def ctx_setup(message, contexts, args):
         await send_main_setup_menu(message, contexts)
     elif context == "bga username":
         save_data(message.author.id, username=message.content)
+        reset_context(contexts, str(message.author))
     elif context == "bga password":
         save_data(message.author.id, password=message.content)
+        reset_context(contexts, str(message.author))
     elif context == "bga global prefs":
         await ctx_bga_parse_options(message, contexts)
     elif context == "bga choose game prefs":

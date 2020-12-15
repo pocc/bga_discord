@@ -11,6 +11,11 @@ def is_url(url):
         return False
 
 
+def reset_context(contexts, author):
+    """End the current interactive session by deleting info about it."""
+    contexts[author] = {}
+
+
 async def send_help(message, help_type):
     """Send the user a help message from a file"""
     filename = "src/docs/" + help_type + "_msg.md"
