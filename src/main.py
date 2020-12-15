@@ -51,8 +51,13 @@ async def on_message(message):
     if message.content.startswith("!bga"):  # Transition to new syntax
         message.content = message.content.replace("bga ", "").replace("make", "play").replace("tables", "status")
         message.content = message.content.replace("bga", "help")  # If it's just !bga, do !help instead
+    is_context_bga_password = (
+        str(message.author) in contexts
+        and "context" in contexts[str(message.author)]
+        and contexts[str(message.author)] == "bga password"
+    )
     if any([message.content.startswith(i) for i in SUBCOMMANDS]):
-        if "setup" not in message.content:  # Don't log passwords
+        if "setup" not in message.content and not is_context_bga_password:  # Don't log passwords
             logger.debug(f"Received message {message.content}")
         try:
             if message.content.startswith("!tfm"):
@@ -70,7 +75,7 @@ async def on_message(message):
     # Use a contexts variable to keep track of next step for user.
     # this can be anything the user sends to the bot and needs to be parsed according to the context.
     elif str(message.channel.type) == "private" and message.channel.me == client.user:
-        if "setup" not in message.content:  # Don't log passwords
+        if "setup" not in message.content and not is_context_bga_password:  # Don't log passwords
             logger.debug(f"Received direct message {message.content}")
         safe_to_check_timestamp = str(message.author) in contexts and "timestamp" in contexts[str(message.author)]
         if safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 30:
