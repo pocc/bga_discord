@@ -27,6 +27,8 @@ def save_data(discord_id, bga_userid="", username="", password="", bga_global_op
     """save data."""
     cipher_suite = Fernet(FERNET_KEY)
     user_json = get_all_logins()
+    if str(discord_id) not in user_json:
+        user_json[str(discord_id)] = {}
     if bga_userid:
         user_json[str(discord_id)]["bga_userid"] = bga_userid
     if username:
