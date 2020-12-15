@@ -53,6 +53,12 @@ Generate an encryption key with:
 ( umask 077 && python -c 'from cryptography.fernet import Fernet; print("FERNET_KEY = %s" % Fernet.generate_key())' >> src/keys.py )
 ```
 
+Store your Discord username (replacing `$USER` in the following command):
+
+```bash
+python -c 'from pprint import pformat; import sys; print("CONTRIBUTORS = " + pformat(sys.argv[1:]))' "$USER" >> src/keys.py
+```
+
 Run:
 
 ```bash

@@ -6,7 +6,11 @@ from creds_iface import get_all_logins
 from discord_utils import send_options_embed
 from tfm_create_game import AVAILABLE_TFM_OPTIONS
 from creds_iface import save_data
-from keys import CONTRIBUTORS
+
+try:
+    from keys import CONTRIBUTORS
+except ImportError:
+    CONTRIBUTORS = []
 from utils import normalize_name
 
 
