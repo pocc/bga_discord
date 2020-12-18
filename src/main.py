@@ -58,40 +58,60 @@ async def on_message(message):
     )
     if any([message.content.startswith(i) for i in SUBCOMMANDS]):
         if "setup" not in message.content and not is_context_bga_password:  # Don't log passwords
-            logger.debug(f"Received message {message.content}")
-        try:
-            if message.content.startswith("!tfm"):
-                await init_tfm_game(message)
-            else:
-                # Preserve command syntax and when there are missing args, go interactive
-                try:
-                    args = shlex.split(message.content.replace("'", "").replace("„", '"').replace("“", '"'))
-                except ValueError as e:
-                    message.channel.send("Problem parsing command: " + str(e))
-                await trigger_bga_action(message, args)
-        except Exception as e:
-            logger.error("Encountered error:" + str(e) + "\n" + str(traceback.format_exc()))
-            await message.channel.send("Tell <@!234561564697559041> to fix his bga bot.")
+            logger.debug(
+                f"Received message {message.content} from {message.author.name} (ID:{message.author.id}) from server {message.guild.name}",
+            )
+        if message.content.startswith("!tfm"):
+            await try_catch(message, init_tfm_game, [message])
+        else:
+            # Preserve command syntax and when there are missing args, go interactive
+            try:
+                args = shlex.split(message.content.replace("'", "").replace("„", '"').replace("“", '"'))
+                await try_catch(message, trigger_bga_action, [message, args])
+            except ValueError as e:
+                await message.channel.send("Problem parsing command: " + str(e))
     # Use a contexts variable to keep track of next step for user.
     # this can be anything the user sends to the bot and needs to be parsed according to the context.
     elif str(message.channel.type) == "private" and message.channel.me == client.user:
         if "setup" not in message.content and not is_context_bga_password:  # Don't log passwords
-            logger.debug(f"Received direct message {message.content}")
+            logger.debug(
+                f"Received direct message {message.content} from {message.author.name} (ID:{message.author.id})",
+            )
         safe_to_check_timestamp = str(message.author) in contexts and "timestamp" in contexts[str(message.author)]
         if safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 30:
-            await trigger_interactive_response(message, contexts, message.content.split(" ")[0][1:], [])
+            interactive_args = [message, contexts, message.content.split(" ")[0][1:], []]
+            await try_catch(message, trigger_interactive_response, interactive_args)
         else:
             await message.channel.send("Operation timed out...")
-            await trigger_interactive_response(message, contexts, "timeout", [])
+            await try_catch(message, trigger_interactive_response, [message, contexts, "timeout", []])
     # Integration with Bosspiles bot
     elif message.author.id == 713362507770626149 and ":vs:" in message.content:
-        await generate_matches_from_bosspile(message)
+        await try_catch(message, generate_matches_from_bosspile, [message])
+
+
+async def try_catch(message, function, args_list):
+    try:
+        await function(*args_list)
+    except discord.errors.Forbidden as e:
+        if e.text == "403 Forbidden (error code: 50013): Missing Permissions":
+            await message.channel.send(
+                "The operation failed because admins didn't give the bot the permissions it needs on this server. Try kicking and readding the bot.",
+            )
+        elif e.text == "403 Forbidden (error code: 50007): Cannot send messages to this user":
+            await message.channel.send(
+                "Cannot send messages to this user. This may be because this user has DMs disabled for non-friends or that admins didn't give this bot the permissions it needs.",
+            )
+        else:
+            await message.channel.send("Operation failed due to problem with permissions: " + e.text)
+    except Exception as e:
+        logger.error("Encountered error:" + str(e) + "\n" + str(traceback.format_exc()))
+        await message.channel.send("Tell <@!234561564697559041> to fix his bga bot.")
 
 
 async def trigger_bga_action(message, args):
     author = str(message.author)
     command = args[0][1:]
-    args = args[1:]  # remove the command from args
+    args.remove(args[0])
     noninteractive_commands = ["list", "help", "options"]
     if command in noninteractive_commands:
         contexts[author] = {}
