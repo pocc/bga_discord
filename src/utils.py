@@ -49,3 +49,10 @@ async def send_message_partials(destination, remainder):
 
 def normalize_name(game_name):
     return re.sub("[^a-z0-7]+", "", game_name.lower())
+
+
+def force_double_quotes(string):
+    # People from other countries keep on using strange quotes because of their phone's keyboard
+    # Force double quotes so shlex parses correctly
+    all_quotes = "'‹›«»‘’‚“”„′″「」﹁﹂『』﹃﹄《》〈〉"
+    return re.sub("[" + all_quotes + "]", '"', string)

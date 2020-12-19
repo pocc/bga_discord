@@ -44,6 +44,7 @@ async def create_bga_game(message, bga_account, game, players, p1_id, options):
     # If the player is a discord tag, this will be
     # {"bga player": "discord tag"}, otherwise {"bga player":""}
     error_players = []
+    players = [p.strip() for p in players]
     bga_discord_user_map = await find_bga_users(players, error_players)
     bga_players = list(bga_discord_user_map.keys())
     table_id, create_err = await bga_account.create_table(game)

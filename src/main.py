@@ -15,7 +15,7 @@ from bga_add_friend import add_friends
 from keys import TOKEN
 from tfm_create_game import init_tfm_game
 from menu_root import trigger_interactive_response
-from utils import send_help
+from utils import send_help, force_double_quotes
 
 LOG_FILENAME = "errs"
 SUBCOMMANDS = ["!setup", "!play", "!status", "!help", "!options", "!list", "!friend", "!tfm"]
@@ -51,32 +51,22 @@ async def on_message(message):
     if message.content.startswith("!bga"):  # Transition to new syntax
         message.content = message.content.replace("bga ", "").replace("make", "play").replace("tables", "status")
         message.content = message.content.replace("bga", "help")  # If it's just !bga, do !help instead
-    is_context_bga_password = (
-        str(message.author) in contexts
-        and "context" in contexts[str(message.author)]
-        and contexts[str(message.author)] == "bga password"
-    )
     if any([message.content.startswith(i) for i in SUBCOMMANDS]):
-        if "setup" not in message.content and not is_context_bga_password:  # Don't log passwords
-            logger.debug(
-                f"Received message {message.content} from {message.author.name} (ID:{message.author.id}) from server {message.guild.name}",
-            )
+        log_received_message(message)
         if message.content.startswith("!tfm"):
             await try_catch(message, init_tfm_game, [message])
         else:
             # Preserve command syntax and when there are missing args, go interactive
             try:
-                args = shlex.split(message.content.replace("'", "").replace("„", '"').replace("“", '"'))
+                message.content = force_double_quotes(message.content)
+                args = shlex.split(message.content)
                 await try_catch(message, trigger_bga_action, [message, args])
             except ValueError as e:
                 await message.channel.send("Problem parsing command: " + str(e))
     # Use a contexts variable to keep track of next step for user.
     # this can be anything the user sends to the bot and needs to be parsed according to the context.
     elif str(message.channel.type) == "private" and message.channel.me == client.user:
-        if "setup" not in message.content and not is_context_bga_password:  # Don't log passwords
-            logger.debug(
-                f"Received direct message {message.content} from {message.author.name} (ID:{message.author.id})",
-            )
+        log_received_message(message)
         safe_to_check_timestamp = str(message.author) in contexts and "timestamp" in contexts[str(message.author)]
         if safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 30:
             interactive_args = [message, contexts, message.content.split(" ")[0][1:], []]
@@ -86,7 +76,28 @@ async def on_message(message):
             await try_catch(message, trigger_interactive_response, [message, contexts, "timeout", []])
     # Integration with Bosspiles bot
     elif message.author.id == 713362507770626149 and ":vs:" in message.content:
+        logger.debug("Bosspile integration has been triggered.")
         await try_catch(message, generate_matches_from_bosspile, [message])
+
+
+def log_received_message(message):
+    """Log incoming messages, but strip passwords if possible.
+
+    Passwords are expected in the !setup longform command
+    as well as !setup when the context is `bga password`
+    """
+    is_context_bga_password = (
+        str(message.author) in contexts
+        and "context" in contexts[str(message.author)]
+        and contexts[str(message.author)] == "bga password"
+    )
+    if not is_context_bga_password:
+        msg = message.content
+        if "setup" not in message.content:
+            msg = " ".join(msg.split(" ")[:-1])  # Don't log passwords, which should be last arg
+        logger.debug(
+            f"Received message from {message.author.name} (ID:{message.author.id}) on server {message.guild.name}: `{msg}`",
+        )
 
 
 async def try_catch(message, function, args_list):
