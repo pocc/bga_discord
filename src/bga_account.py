@@ -65,7 +65,9 @@ class BGAAccount:
     async def post(self, url, params):
         """Generic post."""
         logger.debug("LOGIN: " + url + "\nEMAIL: " + params["email"])
-        await self.session.post(url, data=params)
+        async with self.session.post(url, data=params) as response:
+            resp_text = await response.text()
+            print(f"Posted {url}. Resp: " + resp_text[:80])
 
     async def login(self, username, password):
         """Login to BGA provided the username/password. The session will

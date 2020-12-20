@@ -14,10 +14,10 @@ async def ctx_setup(message, contexts, args):
     """Provide the menu to do things with status."""
     context = contexts[str(message.author)]["context"]
     if context == "setup":
-        if message.content.isdigit() and message.content >= "1" and message.content <= "4":
+        if message.content.isdigit() and message.content >= "1" and message.content <= "5":
             await parse_setup_menu(message, contexts)
         else:
-            await message.channel.send("Enter 1, 2, 3, or 4 for the option in the embed above.")
+            await message.channel.send("Enter 1, 2, 3, 4, or 5 for the option in the embed above.")
         return
     # Will run on first setup menu run
     elif context == "":
@@ -25,7 +25,7 @@ async def ctx_setup(message, contexts, args):
     elif context == "bga username":
         save_data(message.author.id, username=message.content)
         await message.channel.send(f"Username set to `{message.content}`")
-        reset_context(contexts, str(message.author))
+        await send_main_setup_menu(message, contexts)
     elif context == "bga password":
         logins = get_all_logins()
         if not logins[str(message.author.id)]["username"]:
@@ -33,13 +33,16 @@ async def ctx_setup(message, contexts, args):
             contexts[str(message.author)]["context"] = "setup"
             return
         account = BGAAccount()
-        login_successful = account.login(logins[str(message.author.id)]["username"], message.content)
-        account.logout()
+        login_successful = await account.login(logins[str(message.author.id)]["username"], message.content)
+        await account.logout()
         if login_successful:
             save_data(message.author.id, password=message.content)
-            await message.channel.send("Username/password verified and password saved.")
-            reset_context(contexts, str(message.author))
-        contexts[str(message.author)]["context"] = "setup"
+            await message.channel.send("BGA username/password verified and password saved.")
+            await send_main_setup_menu(message, contexts)
+        else:
+            await message.channel.send("BGA did not like that username/password combination. Not saving password.")
+            contexts[str(message.author)]["context"] = ""
+            await send_main_setup_menu(message, contexts)
     elif context == "bga global prefs":
         await ctx_bga_parse_options(message, contexts)
     elif context == "bga choose game prefs":
@@ -51,19 +54,19 @@ async def ctx_setup(message, contexts, args):
             await message.channel.send(
                 f"{game_name} is not a valid game. Spelling matters, but not spaces, captilazition, or punctuation. Try again.",
             )
-    elif context == "tfm password":
-        ctx_tfm_options(message, contexts)
-
-    # BGA options menu. Not checking input yet.
+    # BGA options/TFM options menu. Not checking input yet.
     else:
 
-        async def save_pref_data(message, options, game_name):
-            ret_msg = f"{context} successfully set to {message.content}"
-            if game_prefs_name:
+        async def save_pref_data(message, context, new_value, platform, game_prefs_name):
+            options = {context: new_value}
+            ret_msg = f"{context} successfully set to {new_value}"
+            if platform == "bga" and game_prefs_name:
                 ret_msg += f" for game {game_name}"
                 save_data(message.author.id, bga_game_options={game_prefs_name: options})
-            else:
+            elif platform == "bga":
                 save_data(message.author.id, bga_global_options=options)
+            elif platform == "tfm":
+                save_data(message.author.id, tfm_global_options=options)
             await message.channel.send(ret_msg)
 
         game_prefs_name = ""
@@ -72,23 +75,31 @@ async def ctx_setup(message, contexts, args):
         is_interactive_session_over = True
         if context in ["presentation", "players", "restrictgroup", "lang"]:
             options = {context: message.content}
-            await save_pref_data(message, options, game_prefs_name)
+            await save_pref_data(message, options, message.content, "bga", game_prefs_name)
         elif context == "mode":
-            options = {context: MODE_VALUES[int(message.content) - 1]}
-            await save_pref_data(message, options, game_prefs_name)
+            new_value = MODE_VALUES[int(message.content) - 1]
+            await save_pref_data(message, context, new_value, "bga", game_prefs_name)
         elif context == "speed":
-            options = {context: SPEED_VALUES[int(message.content) - 1]}
-            await save_pref_data(message, options, game_prefs_name)
+            new_value = SPEED_VALUES[int(message.content) - 1]
+            await save_pref_data(message, context, new_value, "bga", game_prefs_name)
         elif context == "karma":
-            options = {context: KARMA_VALUES[int(message.content) - 1]}
-            await save_pref_data(message, options, game_prefs_name)
-        elif context == "levels":
-            options = {context: LEVEL_VALUES[int(message.content) - 1]}
-            await save_pref_data(message, options, game_prefs_name)
+            new_value = KARMA_VALUES[int(message.content) - 1]
+            await save_pref_data(message, context, new_value, "bga", game_prefs_name)
+        elif context == "min level":
+            new_value = LEVEL_VALUES[int(message.content) - 1]
+            await save_pref_data(message, context, new_value, "bga", game_prefs_name)
+        elif context == "max level":
+            new_value = LEVEL_VALUES[int(message.content) - 1]
+            await save_pref_data(message, context, new_value, "bga", game_prefs_name)
+        elif context == "tfm choose game prefs":
+            pref_name = AVAILABLE_TFM_OPTIONS[int(message.content) - 1]
+            await save_pref_data(message, pref_name, True, "tfm", game_prefs_name)
         else:
             is_interactive_session_over = False
         if is_interactive_session_over:
+            # Keep on going until user hits cancel
             reset_context(contexts, message.author)
+            await send_main_setup_menu(message, contexts)
 
 
 async def send_main_setup_menu(message, contexts):
@@ -103,7 +114,7 @@ async def send_main_setup_menu(message, contexts):
     else:
         desc = "**User**: [*unset*]"
     if "password" in user_data:
-        desc += f"\n**Password**: `{user_data['password']}`"
+        desc += "\n**Password**: `********`"
     else:
         desc += "\n**Password**: [*unset*]"
     if "bga options" in user_data:
@@ -114,6 +125,9 @@ async def send_main_setup_menu(message, contexts):
             json.dumps(user_data["bga game options"], indent=2).replace("\n   ", "\n> . ").replace("\n ", "\n> ")
         )
         desc += f"\n__BGA Game Options__: {option_str}"
+    if "tfm options" in user_data:
+        option_str = json.dumps(user_data["tfm options"], indent=2).replace("\n   ", "\n> . ").replace("\n ", "\n> ")
+        desc += f"\n__TFM Options__: {option_str}"
     options = [
         "Set Board Game Arena username",
         "Set Board Game Arena password",
@@ -140,6 +154,7 @@ async def parse_setup_menu(message, contexts):
     elif message.content == "5":
         contexts[str(message.author)]["context"] = "tfm options"
         await send_options_embed(message, "TFM option", AVAILABLE_TFM_OPTIONS)
+        contexts[str(message.author)]["context"] = "tfm choose game prefs"
 
 
 async def ctx_bga_options_menu(message, contexts, option_name="BGA option"):
@@ -178,10 +193,10 @@ async def ctx_bga_parse_options(message, contexts):
         contexts[str(message.author)]["context"] = "players"
         await message.channel.send("How many players (For 2 to 5 players, type `2-5`)?")
     elif message.content == "6":
-        contexts[str(message.author)]["context"] = "levels"
+        contexts[str(message.author)]["context"] = "min level"
         await send_options_embed(message, "min level", LEVEL_VALUES)
     elif message.content == "7":
-        contexts[str(message.author)]["context"] = "levels"
+        contexts[str(message.author)]["context"] = "max level"
         await send_options_embed(message, "max level", LEVEL_VALUES)
     elif message.content == "8":
         contexts[str(message.author)]["context"] = "restrictgroup"
@@ -189,7 +204,3 @@ async def ctx_bga_parse_options(message, contexts):
     elif message.content == "9":
         contexts[str(message.author)]["context"] = "lang"
         await message.channel.send("What 2 letter language code to set to?")
-
-
-async def ctx_tfm_options(message, contexts):
-    pass

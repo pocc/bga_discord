@@ -14,7 +14,6 @@ def is_url(url):
 def reset_context(contexts, author):
     """End the current interactive session by deleting info about it."""
     contexts[author] = {}
-    author.send("Settings saved!")
 
 
 async def send_help(message, help_type):

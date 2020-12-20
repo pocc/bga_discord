@@ -23,7 +23,15 @@ def get_discord_id(bga_name, message):
     return -1
 
 
-def save_data(discord_id, bga_userid="", username="", password="", bga_global_options=[], bga_game_options={}):
+def save_data(
+    discord_id,
+    bga_userid="",
+    username="",
+    password="",
+    bga_global_options=[],
+    tfm_global_options=[],
+    bga_game_options={},
+):
     """save data."""
     cipher_suite = Fernet(FERNET_KEY)
     user_json = get_all_logins()
@@ -39,6 +47,10 @@ def save_data(discord_id, bga_userid="", username="", password="", bga_global_op
         if "bga options" not in user_json[str(discord_id)]:
             user_json[str(discord_id)]["bga options"] = {}
         user_json[str(discord_id)]["bga options"].update(bga_global_options)
+    if tfm_global_options:
+        if "tfm options" not in user_json[str(discord_id)]:
+            user_json[str(discord_id)]["tfm options"] = {}
+        user_json[str(discord_id)]["tfm options"].update(tfm_global_options)
     if bga_game_options:
         if "bga game options" not in user_json[str(discord_id)]:
             user_json[str(discord_id)]["bga game options"] = {}
