@@ -5,6 +5,7 @@ from bga_create_game import setup_bga_game
 from discord_utils import send_options_embed, send_simple_embed
 from cmd_sub_setup import ctx_bga_options_menu, ctx_bga_parse_options
 from bga_account import MODE_VALUES, SPEED_VALUES, KARMA_VALUES, LEVEL_VALUES
+from utils import reset_context
 
 
 GAME_OPTIONS = ["finish and create game", "add a player", "change a game option", "change target channel for embed"]
@@ -34,6 +35,7 @@ async def ctx_play(message, contexts, args):
         await send_game_options(message, contexts)
     # BGA options menu. Not checking input yet.
     elif context in ["presentation", "players", "restrictgroup", "lang", "mode", "speed", "karma", "levels"]:
+        is_session_finished = True
         if context in ["presentation", "players", "restrictgroup", "lang"]:
             contexts[str(message.author)]["game"]["options"][context] = message.content
             await message.channel.send(f"{context} successfully set to {message.content}")
@@ -49,6 +51,10 @@ async def ctx_play(message, contexts, args):
         elif context == "levels":
             contexts[str(message.author)]["game"]["options"][context] = LEVEL_VALUES[int(message.content) - 1]
             await message.channel.send(f"{context} successfully set to {LEVEL_VALUES[int(message.content)-1]}")
+        else:
+            is_session_finished = False
+        if is_session_finished:
+            reset_context(contexts, message.author)
         await send_game_options(message, contexts)  # resend the game edit options once option is seleceted
     else:
         if message.content.isdigit() and 1 <= int(message.content) <= len(GAME_OPTIONS):
@@ -114,15 +120,20 @@ async def ctx_game_option(message, contexts, args):
 async def ctx_add_a_player(message, contexts, args):
     contexts[str(message.author)]["game"]["players"].append(message.content)
     await message.channel.send("Added player " + message.content)
+    reset_context(contexts, message.author)
 
 
 async def ctx_change_target_channel_for_embed(message, contexts, args):
     contexts[str(message.author)]["channel"] = message.content
     await message.channel.send("Changed channel to " + message.content)
+    reset_context(contexts, message.author)
 
 
 async def ctx_finish_and_create_game(message, contexts, args):
     game = contexts[str(message.author)]["game"]["name"]
     players = contexts[str(message.author)]["game"]["players"]
     options = contexts[str(message.author)]["game"]["options"]
-    await setup_bga_game(message, str(message.author.id), game, players, options)
+    errs = await setup_bga_game(message, str(message.author.id), game, players, options)
+    if errs:
+        message.channel.send(errs)
+    reset_context(contexts, message.author)

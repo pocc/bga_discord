@@ -1,6 +1,6 @@
 import json
 
-from bga_account import SPEED_VALUES, MODE_VALUES, LEVEL_VALUES, KARMA_VALUES
+from bga_account import BGAAccount, SPEED_VALUES, MODE_VALUES, LEVEL_VALUES, KARMA_VALUES
 from bga_game_list import is_game_valid
 from creds_iface import get_all_logins
 from discord_utils import send_options_embed
@@ -24,10 +24,22 @@ async def ctx_setup(message, contexts, args):
         await send_main_setup_menu(message, contexts)
     elif context == "bga username":
         save_data(message.author.id, username=message.content)
+        await message.channel.send(f"Username set to `{message.content}`")
         reset_context(contexts, str(message.author))
     elif context == "bga password":
-        save_data(message.author.id, password=message.content)
-        reset_context(contexts, str(message.author))
+        logins = get_all_logins()
+        if not logins[str(message.author.id)]["username"]:
+            await message.channel.send("You must first enter your username before entering a password.")
+            contexts[str(message.author)]["context"] = "setup"
+            return
+        account = BGAAccount()
+        login_successful = account.login(logins[str(message.author.id)]["username"], message.content)
+        account.logout()
+        if login_successful:
+            save_data(message.author.id, password=message.content)
+            await message.channel.send("Username/password verified and password saved.")
+            reset_context(contexts, str(message.author))
+        contexts[str(message.author)]["context"] = "setup"
     elif context == "bga global prefs":
         await ctx_bga_parse_options(message, contexts)
     elif context == "bga choose game prefs":
@@ -57,6 +69,7 @@ async def ctx_setup(message, contexts, args):
         game_prefs_name = ""
         if "bga prefs for game" in contexts[str(message.author)]:
             game_prefs_name = contexts[str(message.author)]["bga prefs for game"]
+        is_interactive_session_over = True
         if context in ["presentation", "players", "restrictgroup", "lang"]:
             options = {context: message.content}
             await save_pref_data(message, options, game_prefs_name)
@@ -72,20 +85,25 @@ async def ctx_setup(message, contexts, args):
         elif context == "levels":
             options = {context: LEVEL_VALUES[int(message.content) - 1]}
             await save_pref_data(message, options, game_prefs_name)
+        else:
+            is_interactive_session_over = False
+        if is_interactive_session_over:
+            reset_context(contexts, message.author)
 
 
 async def send_main_setup_menu(message, contexts):
     opt_type = "option"
-    try:
+    logins = get_all_logins()
+    if str(message.author.id) in logins:
         user_data = get_all_logins()[str(message.author.id)]
-    except KeyError:
+    else:
         user_data = {}
     if "username" in user_data:
-        desc = f"**User**: {user_data['username']}"
+        desc = f"**User**: `{user_data['username']}`"
     else:
         desc = "**User**: [*unset*]"
     if "password" in user_data:
-        desc += "\n**Password**: [*secret*]"
+        desc += f"\n**Password**: `{user_data['password']}`"
     else:
         desc += "\n**Password**: [*unset*]"
     if "bga options" in user_data:

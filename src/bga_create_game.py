@@ -12,15 +12,22 @@ logging.getLogger("discord").setLevel(logging.WARN)
 
 
 async def setup_bga_game(message, p1_discord_id, game, players, options):
-    """Setup a game on BGA based on the message."""
+    """Setup a game on BGA based on the message.
+    Return a text error or ""
+    """
     account, errs = await get_active_session(p1_discord_id)
     if errs:
-        await message.channel.send(f"<@{p1_discord_id}>:" + errs)
-        return
-    if account is None:
-        return
+        return errs
     # Use user prefs set in !setup if set
-    user_data = get_all_logins()[str(message.author.id)]
+    logins = get_all_logins()
+    if (
+        str(message.author.id) in logins
+        and ("username" in logins[str(message.author.id)] and len(logins[str(message.author.id)]["username"]) > 0)
+        and ("password" in logins[str(message.author.id)] and len(logins[str(message.author.id)]["username"]) > 0)
+    ):
+        user_data = logins[str(message.author.id)]
+    else:
+        return "Need BGA credentials to setup game. Run !setup."
     user_prefs = {}
     all_game_prefs = {}
     # bga options and bga game options aren't necessarily defined
@@ -37,6 +44,7 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
     await table_msg.delete()
     await account.logout()  # Probably not necessary
     await account.close_connection()
+    return ""
 
 
 async def create_bga_game(message, bga_account, game, players, p1_id, options):
@@ -44,7 +52,6 @@ async def create_bga_game(message, bga_account, game, players, p1_id, options):
     # If the player is a discord tag, this will be
     # {"bga player": "discord tag"}, otherwise {"bga player":""}
     error_players = []
-    players = [p.strip() for p in players]
     bga_discord_user_map = await find_bga_users(players, error_players)
     bga_players = list(bga_discord_user_map.keys())
     table_id, create_err = await bga_account.create_table(game)

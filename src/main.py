@@ -58,8 +58,10 @@ async def on_message(message):
         else:
             # Preserve command syntax and when there are missing args, go interactive
             try:
+                # Replace quotes and strip white space to sanitize arguments
                 message.content = force_double_quotes(message.content)
                 args = shlex.split(message.content)
+                args = [arg.strip() for arg in args]
                 await try_catch(message, trigger_bga_action, [message, args])
             except ValueError as e:
                 await message.channel.send("Problem parsing command: " + str(e))
@@ -68,11 +70,15 @@ async def on_message(message):
     elif str(message.channel.type) == "private" and message.channel.me == client.user:
         log_received_message(message)
         safe_to_check_timestamp = str(message.author) in contexts and "timestamp" in contexts[str(message.author)]
-        if safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 30:
+        if str(message.author) not in contexts:
+            await try_catch(message, trigger_interactive_response, [message, contexts, "", []])
+        elif safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 300:
             interactive_args = [message, contexts, message.content.split(" ")[0][1:], []]
             await try_catch(message, trigger_interactive_response, interactive_args)
+        elif "context" in contexts[str(message.author)]:
+            await message.channel.send(f"Operation timed out for operation {contexts[str(message.author)]['context']}")
+            await try_catch(message, trigger_interactive_response, [message, contexts, "timeout", []])
         else:
-            await message.channel.send("Operation timed out...")
             await try_catch(message, trigger_interactive_response, [message, contexts, "timeout", []])
     # Integration with Bosspiles bot
     elif message.author.id == 713362507770626149 and ":vs:" in message.content:
@@ -93,10 +99,15 @@ def log_received_message(message):
     )
     if not is_context_bga_password:
         msg = message.content
-        if "setup" not in message.content:
-            msg = " ".join(msg.split(" ")[:-1])  # Don't log passwords, which should be last arg
+        if "setup" in message.content and len(message.content.split(" ")) >= 4:
+            args = msg.split(" ")[:-1].append("[obfuscated password]")
+            msg = " ".join(args)  # Don't log passwords, which should be last arg
+        if message.guild:
+            guild = "guild " + message.guild.name
+        else:
+            guild = "private message"
         logger.debug(
-            f"Received message from {message.author.name} (ID:{message.author.id}) on server {message.guild.name}: `{msg}`",
+            f"Received message `{msg}` from {message.author.name} (ID:{message.author.id}) via {guild}",
         )
 
 
@@ -140,7 +151,9 @@ async def trigger_bga_action(message, args):
                 # Options with : are not players
                 players.remove(arg)
         discord_id = message.author.id
-        await setup_bga_game(message, discord_id, game, players, options)
+        errs = await setup_bga_game(message, discord_id, game, players, options)
+        if errs:
+            await message.channel.send(errs)
     elif command == "status" and len(args) >= 2:
         game = ""  # if game isn't specified, then bot will search for all games
         for arg in args:

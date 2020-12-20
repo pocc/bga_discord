@@ -102,7 +102,7 @@ async def get_active_session(discord_id):
     if not login_info:
         return (
             None,
-            f"<@{discord_id}>: You need to run setup before you can use the `make` or `link` subcommands. Type `!bga` for more info.",
+            "You need to run setup before you can use the `!play` command. Type `!help` for more info.",
         )
     # bogus_password ("") means no password present
     if login_info["password"] == "":

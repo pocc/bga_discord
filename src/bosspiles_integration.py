@@ -22,14 +22,26 @@ async def generate_matches_from_bosspile(message):
     # Channels are misnamed
     game_name = game_name.replace("raceftg", "raceforthegalaxy").replace("rollftg", "rollforthegalaxy")
     # If game isn't a BGA game, then quit this integration
-    if not is_game_valid(game_name):
+    if not await is_game_valid(game_name):
         return
     # There shouldn't be diamonds in the vs matchups
-    current_matches = re.findall(":hourglass: ([a-zA-Z0-9 ]+)[^:]*? :vs: ([a-zA-Z0-9 ]+)", message.content)
+    current_matches = re.findall(":hourglass: ([a-zA-Z0-9_ ]+)[^:]*? :vs: ([a-zA-Z0-9_ ]+)", message.content)
     if current_matches:
         for match in current_matches:
             match_p1, match_p2 = match[0].strip(), match[1].strip()
             await get_tables_by_players([match_p1, match_p2], message, False, game_name)
+    test_matches = re.findall("(?::hourglass|:vs): ([a-zA-Z0-9 ]{4,})", message.content)
+    logger.debug(message.content)
+    logger.debug("bad regex" + str(test_matches))
+    """
+    # There shouldn't be diamonds in the vs matchups https://regex101.com/r/IpToAO/2
+    current_matches = re.findall("(?::hourglass|:vs): ([a-zA-Z0-9 ]+)", message.content)
+    if current_matches:
+        for match in current_matches:
+            for player in range(len(match)):
+                match[player].strip()
+            await get_tables_by_players(match, message, False, game_name)
+    """
     player_names = []
     all_logins = get_all_logins()
     for discord_id in all_logins:
@@ -54,18 +66,22 @@ async def generate_matches_from_bosspile(message):
         logger.debug(f"Found discord ids: {p1_discord_id} {p2_discord_id}")
         # If p1/p2_text are discord tags or bga names, setup should properly convert either
         if p1_discord_id != -1 and p1_has_account:
-            await setup_bga_game(
+            errs = await setup_bga_game(
                 message,
                 p1_discord_id,
                 game_name,
                 [p1_text, p2_text],
                 {"speed": "1/day"},
             )
+            if errs:
+                logger.debug(errs)
         elif p2_discord_id != -1 and p2_has_account:
-            await setup_bga_game(
+            errs = await setup_bga_game(
                 message,
                 p2_discord_id,
                 game_name,
                 [p1_text, p2_text],
                 {"speed": "1/day"},
             )
+            if errs:
+                logger.debug(errs)
