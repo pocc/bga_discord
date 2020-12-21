@@ -32,6 +32,9 @@ You can run any command interactively by specifying only the command, like `!set
     Print the available options that can be specified with make.
     Board game arena options must be specified like `speed:slow`.
 
+## **purge**
+    Delete all of the data you see in !setup. This is irreversible.
+
 ---
 
 # __**Examples**__

@@ -18,7 +18,7 @@ from menu_root import trigger_interactive_response
 from utils import send_help, force_double_quotes
 
 LOG_FILENAME = "errs"
-SUBCOMMANDS = ["!setup", "!play", "!status", "!help", "!options", "!list", "!friend", "!tfm"]
+SUBCOMMANDS = ["!setup", "!play", "!status", "!help", "!options", "!list", "!friend", "!tfm", "!purge"]
 logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)
 # Add the log message handler to the logger
@@ -137,7 +137,7 @@ async def trigger_bga_action(message, args):
     noninteractive_commands = ["list", "help", "options"]
     if command in noninteractive_commands:
         contexts[author] = {}
-    if command == "setup" and len(args) == 2:
+    if command == "setup" and len(args) == 3:
         bga_user, bga_passwd = args[1], args[2]
         await setup_bga_account(message, bga_user, bga_passwd)
     elif command == "play" and len(args) >= 2:

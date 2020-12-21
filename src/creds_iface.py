@@ -28,13 +28,22 @@ def save_data(
     bga_userid="",
     username="",
     password="",
+    purge_data=False,
     bga_global_options=[],
     tfm_global_options=[],
     bga_game_options={},
 ):
     """save data."""
-    cipher_suite = Fernet(FERNET_KEY)
     user_json = get_all_logins()
+    if purge_data:
+        # Keep username. User can rename themselves if they want.
+        if "username" in user_json[str(discord_id)]:
+            username = user_json[str(discord_id)]["username"]
+            user_json[str(discord_id)] = {"username": username}
+        else:
+            user_json[str(discord_id)] = {}
+        write_data(user_json)
+        return
     if str(discord_id) not in user_json:
         user_json[str(discord_id)] = {}
     if bga_userid:
@@ -58,6 +67,12 @@ def save_data(
         if game_name not in user_json[str(discord_id)]["bga game options"]:
             user_json[str(discord_id)]["bga game options"][game_name] = {}
         user_json[str(discord_id)]["bga game options"][game_name].update(bga_game_options[game_name])
+    write_data(user_json)
+
+
+def write_data(user_json):
+    """Write the user json given the text."""
+    cipher_suite = Fernet(FERNET_KEY)
     updated_text = json.dumps(user_json)
     reencrypted_text = cipher_suite.encrypt(bytes(updated_text, encoding="utf-8"))
     with os.fdopen(os.open("src/bga_keys", os.O_WRONLY | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR), "wb") as f:
@@ -75,6 +90,11 @@ def get_all_logins():
         text = "{}"
     user_json = json.loads(text)
     return user_json
+
+
+def purge_data(discord_id):
+    """Delete a specific user from the user json blob"""
+    save_data(discord_id, purge_data=True)
 
 
 def get_login(discord_id):

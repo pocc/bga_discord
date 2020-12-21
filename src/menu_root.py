@@ -6,6 +6,7 @@ Each different context will route them to the appropriate location.
 """
 import time
 
+from creds_iface import purge_data
 from discord_utils import send_options_embed
 from cmd_sub_play import ctx_play
 from cmd_sub_setup import ctx_setup
@@ -46,7 +47,12 @@ async def trigger_interactive_response(message, contexts, curr_ctx, args):
             2. Add all members of a BGA group as friends
             3. Join BGA group
     """
-    author = str(message.author)
+    if curr_ctx == "purge":
+        purge_data(str(message.author.id))
+        contexts[str(message.author.id)] = {"context": "setup"}
+        await message.channel.send(f"Deleted data for {message.author.name}.")
+        return
+    author = str(message.author.name)
     if message.content.startswith("cancel"):
         # quit current interactive session
         await message.channel.send("Canceled operation")
@@ -54,7 +60,11 @@ async def trigger_interactive_response(message, contexts, curr_ctx, args):
         return
     if curr_ctx == "choose subprogram" and message.content.isdigit() and 1 <= int(message.content) <= 4:
         curr_ctx = [ctx_setup, ctx_play, ctx_status][int(message.content) - 1]
-    if curr_ctx in ["setup", "play", "status", "friend"] or author not in contexts:
+    if (
+        curr_ctx in ["setup", "play", "status", "friend"]
+        or author not in contexts
+        or "timeout" not in contexts["author"]
+    ):
         contexts[author] = {
             "subcommand": curr_ctx,
             "context": "",
