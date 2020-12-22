@@ -49,10 +49,9 @@ async def trigger_interactive_response(message, contexts, curr_ctx, args):
     """
     if curr_ctx == "purge":
         purge_data(str(message.author.id))
-        contexts[str(message.author.id)] = {"context": "setup"}
         await message.channel.send(f"Deleted data for {message.author.name}.")
         return
-    author = str(message.author.name)
+    author = str(message.author)
     if message.content.startswith("cancel"):
         # quit current interactive session
         await message.channel.send("Canceled operation")
@@ -60,11 +59,7 @@ async def trigger_interactive_response(message, contexts, curr_ctx, args):
         return
     if curr_ctx == "choose subprogram" and message.content.isdigit() and 1 <= int(message.content) <= 4:
         curr_ctx = [ctx_setup, ctx_play, ctx_status][int(message.content) - 1]
-    if (
-        curr_ctx in ["setup", "play", "status", "friend"]
-        or author not in contexts
-        or "timeout" not in contexts["author"]
-    ):
+    if curr_ctx in ["setup", "play", "status", "friend"] or author not in contexts or "timeout" not in contexts[author]:
         contexts[author] = {
             "subcommand": curr_ctx,
             "context": "",
@@ -98,7 +93,7 @@ async def trigger_interactive_response(message, contexts, curr_ctx, args):
             await cmd(message, contexts, args)
         else:
             await message.channel.send(
-                "No interactive contexts found. Use !setup to setup your account, !play to start a game, and !status to check the status of a game.",
+                "No interactive contexts found. Use `!setup` to setup your account, `!play` to start a game, and `!status` to check the status of a game.",
             )
     else:
         await message.channel.send("Session ended because you waited > 5min (start over).")

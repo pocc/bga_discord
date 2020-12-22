@@ -6,6 +6,7 @@ For now, only bosspile bot posts will be read and only if they have new matches
 This integration is mostly for the BGA Discord server
 """
 import logging
+from logging.handlers import RotatingFileHandler
 import re
 
 from creds_iface import get_all_logins
@@ -13,7 +14,13 @@ from bga_table_status import get_tables_by_players
 from bga_create_game import setup_bga_game
 from bga_game_list import is_game_valid
 
+LOG_FILENAME = "errs"
 logger = logging.getLogger(__name__)
+handler = RotatingFileHandler(LOG_FILENAME, maxBytes=10000000, backupCount=0)
+formatter = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 
 async def generate_matches_from_bosspile(message):
@@ -23,6 +30,7 @@ async def generate_matches_from_bosspile(message):
     game_name = game_name.replace("raceftg", "raceforthegalaxy").replace("rollftg", "rollforthegalaxy")
     # If game isn't a BGA game, then quit this integration
     if not await is_game_valid(game_name):
+        logger.debug(f"Game {game_name} is not valid")
         return
     # There shouldn't be diamonds in the vs matchups
     current_matches = re.findall(":hourglass: ([a-zA-Z0-9_ ]+)[^:]*? :vs: ([a-zA-Z0-9_ ]+)", message.content)
@@ -45,7 +53,7 @@ async def generate_matches_from_bosspile(message):
     player_names = []
     all_logins = get_all_logins()
     for discord_id in all_logins:
-        if len(all_logins[discord_id]["password"]) > 0:
+        if "password" in all_logins[discord_id] and len(all_logins[discord_id]["password"]) > 0:
             player_names.append(all_logins[discord_id]["username"])
     logger.debug(f"This bot found {str(player_names)} users with accounts.")
     # Leading : because a discord emoji will come before it.
@@ -63,7 +71,7 @@ async def generate_matches_from_bosspile(message):
         if p2_text.startswith("<@"):
             p2_discord_id = re.match(r"<@!?(\d+)", p2_text)[1]
             p2_has_account = p2_discord_id in all_logins and len(all_logins[p2_discord_id]["password"])
-        logger.debug(f"Found discord ids: {p1_discord_id} {p2_discord_id}")
+        logger.debug(f"Found discord ids for match: {p1_discord_id} {p2_discord_id}")
         # If p1/p2_text are discord tags or bga names, setup should properly convert either
         if p1_discord_id != -1 and p1_has_account:
             errs = await setup_bga_game(

@@ -73,7 +73,11 @@ async def on_message(message):
         if str(message.author) not in contexts:
             await try_catch(message, trigger_interactive_response, [message, contexts, "", []])
         elif safe_to_check_timestamp and contexts[str(message.author)]["timestamp"] > time.time() - 300:
-            interactive_args = [message, contexts, message.content.split(" ")[0][1:], []]
+            if "subcommand" in contexts[str(message.author)] and contexts[str(message.author)]["subcommand"]:
+                command = contexts[str(message.author)]["subcommand"]
+            else:
+                command = message.content.split(" ")[0][1:]  # remove leading ! for command
+            interactive_args = [message, contexts, command, []]
             await try_catch(message, trigger_interactive_response, interactive_args)
         elif "context" in contexts[str(message.author)]:
             await message.channel.send(f"Operation timed out for operation {contexts[str(message.author)]['context']}")
@@ -137,8 +141,8 @@ async def trigger_bga_action(message, args):
     noninteractive_commands = ["list", "help", "options"]
     if command in noninteractive_commands:
         contexts[author] = {}
-    if command == "setup" and len(args) == 3:
-        bga_user, bga_passwd = args[1], args[2]
+    if command == "setup" and len(args) == 2:
+        bga_user, bga_passwd = args[0], args[1]
         await setup_bga_account(message, bga_user, bga_passwd)
     elif command == "play" and len(args) >= 2:
         options = {}

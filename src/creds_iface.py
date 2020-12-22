@@ -120,7 +120,7 @@ async def setup_bga_account(message, bga_username, bga_password):
     if logged_in:
         save_data(discord_id, bga_userid=player_id, username=bga_username, password=bga_password)
         await message.channel.send(
-            f"Account {bga_username} setup successfully. This bot will store your username and password to make tables on your behalf.",
+            f"Account {bga_username} setup successfully. This bot will store your username and password so that you can make tables with !play. To play chess with pocc, use `!play chess pocc`",
         )
     else:
         await message.author.send(
