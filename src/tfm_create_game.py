@@ -1,6 +1,7 @@
 """reate a connection to Board Game Arena and interact with it."""
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import random
 import re
 import shlex
@@ -11,9 +12,16 @@ from discord_utils import send_table_embed
 from utils import is_url
 from utils import send_help
 
-logger = logging.getLogger(__name__)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger("aiohttp").setLevel(logging.WARN)
+
+LOG_FILENAME = "errs"
+logger = logging.getLogger(__name__)
+handler = RotatingFileHandler(LOG_FILENAME, maxBytes=10000000, backupCount=0)
+formatter = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
+
 
 AVAILABLE_TFM_OPTIONS = [
     "customCorporationsList",

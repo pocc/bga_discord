@@ -1,10 +1,16 @@
 """Utils that require discord."""
 import logging
+from logging.handlers import RotatingFileHandler
 
 import discord
 
+LOG_FILENAME = "errs"
 logger = logging.getLogger(__name__)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
+handler = RotatingFileHandler(LOG_FILENAME, maxBytes=10000000, backupCount=0)
+formatter = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 
 async def send_table_embed(message, game, desc, author, players, second_title, second_content):

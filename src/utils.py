@@ -1,8 +1,9 @@
-# Via https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not
+"""Utils for various parts of this program"""
 from urllib.parse import urlparse
 import re
 
 
+# Via https://stackoverflow.com/questions/7160737/how-to-validate-a-url-in-python-malformed-or-not
 def is_url(url):
     try:
         result = urlparse(url)

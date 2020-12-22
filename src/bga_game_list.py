@@ -1,6 +1,7 @@
 """Get/cache available games. Cache is bga_game_list.json."""
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import re
 import time
@@ -9,10 +10,15 @@ import aiohttp
 
 from utils import normalize_name
 
-
-logger = logging.getLogger(__name__)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger("aiohttp").setLevel(logging.WARN)
+
+LOG_FILENAME = "errs"
+logger = logging.getLogger(__name__)
+handler = RotatingFileHandler(LOG_FILENAME, maxBytes=10000000, backupCount=0)
+formatter = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 
 GAME_LIST_PATH = "src/bga_game_list.json"

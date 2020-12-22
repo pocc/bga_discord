@@ -1,6 +1,7 @@
 """Functions to check the status of an existing game on BGA."""
 import datetime
-import logging.handlers
+import logging
+from logging.handlers import RotatingFileHandler
 
 from bga_account import BGAAccount
 from bga_game_list import get_game_list
@@ -8,8 +9,15 @@ from bga_game_list import update_games_cache
 from creds_iface import get_discord_id
 from utils import normalize_name
 
-logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)
+
+LOG_FILENAME = "errs"
+logger = logging.getLogger(__name__)
+handler = RotatingFileHandler(LOG_FILENAME, maxBytes=10000000, backupCount=0)
+formatter = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 
 async def get_tables_by_players(players, message, send_running_tables=True, game_target=""):
