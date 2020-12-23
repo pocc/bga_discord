@@ -53,7 +53,8 @@ async def get_tables_by_players(players, message, send_running_tables=True, game
         table_player_ids = table["player_display"]  # Table.player_display is the player Ids at this table
         if set(bga_ids).issubset(table_player_ids):
             # match the game if a game was specified
-            if len(game_target) == 0 or normalize_name(table["game_name"]) == normalize_name(game_target):
+            normalized_game_name = get_bga_alias(table["game_name"])
+            if len(game_target) == 0 or normalized_game_name == normalize_name(game_target):
                 player_tables.append(table)
     for table in player_tables:
         sent_messages += [await message.channel.send("Getting table information...")]
@@ -92,6 +93,19 @@ async def get_tables_by_players(players, message, send_running_tables=True, game
                 players_list.append(player_name)
         await message.channel.send(f"No {game_target} tables found for players [{', '.join(players_list)}].")
     await bga_account.close_connection()
+
+
+def get_bga_alias(game_name):
+    # BGA uses different names *in game* than for game creation, so recognize this.
+    aliases = {
+        "redsevengame": "red7",
+        "sechsnimmt": "6nimmt",
+        "sevenwonders": "7wonders",
+        "sevenwondersduel": "7wondersduel",
+    }
+    if normalize_name(game_name) in aliases:
+        return aliases[normalize_name(game_name)]
+    return normalize_name(game_name)
 
 
 async def send_active_tables_list(message, bga_account, table, game_name):
