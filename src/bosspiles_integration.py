@@ -32,24 +32,17 @@ async def generate_matches_from_bosspile(message):
     if not await is_game_valid(game_name):
         logger.debug(f"Game {game_name} is not valid")
         return
-    # There shouldn't be diamonds in the vs matchups
-    current_matches = re.findall(":hourglass: ([a-zA-Z0-9_ ]+)[^:]*? :vs: ([a-zA-Z0-9_ ]+)", message.content)
-    if current_matches:
-        for match in current_matches:
-            match_p1, match_p2 = match[0].strip(), match[1].strip()
-            await get_tables_by_players([match_p1, match_p2], message, False, game_name)
-    test_matches = re.findall("(?::hourglass|:vs): ([a-zA-Z0-9 ]{4,})", message.content)
-    logger.debug(message.content)
-    logger.debug("bad regex" + str(test_matches))
-    """
-    # There shouldn't be diamonds in the vs matchups https://regex101.com/r/IpToAO/2
-    current_matches = re.findall("(?::hourglass|:vs): ([a-zA-Z0-9 ]+)", message.content)
-    if current_matches:
-        for match in current_matches:
-            for player in range(len(match)):
-                match[player].strip()
-            await get_tables_by_players(match, message, False, game_name)
-    """
+    # There shouldn't be diamonds in the hourglass vs matchups | https://regex101.com/r/H7zgbn/3
+    current_matches_str_list = re.findall(r":hourglass: ([a-zA-Z0-9: ]+)", message.content)
+    if current_matches_str_list:
+        # Match players is a string that should be splittable with " :vs: " to generate the list
+        logger.debug(
+            f"In channel {message.channel}, found bosspile with matches for players {str(current_matches_str_list)}",
+        )
+        for match_str in current_matches_str_list:
+            if " :vs: " in match_str:
+                match = [i for i in match_str.split(" :vs: ") if i != ""]
+                await get_tables_by_players(match, message, False, game_name)
     player_names = []
     all_logins = get_all_logins()
     for discord_id in all_logins:

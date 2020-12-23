@@ -52,7 +52,9 @@ async def get_tables_by_players(players, message, send_running_tables=True, game
         table = tables[table_id]
         table_player_ids = table["player_display"]  # Table.player_display is the player Ids at this table
         if set(bga_ids).issubset(table_player_ids):
-            player_tables.append(table)
+            # match the game if a game was specified
+            if len(game_target) == 0 or normalize_name(table["game_name"]) == normalize_name(game_target):
+                player_tables.append(table)
     for table in player_tables:
         sent_messages += [await message.channel.send("Getting table information...")]
         logger.debug(f"Checking table {table_id} for bga_ids {str(bga_ids)} in table {str(table)}")
@@ -110,6 +112,6 @@ async def send_active_tables_list(message, bga_account, table, game_name):
         # if table["players"][p_id]["table_order"] == str(table["current_player_nbr"]):
         #    p_name = '**' + p_name + ' to play**'
         p_names.append(p_name)
-    await message.channel.send(
-        f"__{game_name}__\t\t[{', '.join(p_names)}]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\n\t\t<{table_url}>\n",
-    )
+    msg_to_send = f"__{game_name}__\t\t[{', '.join(p_names)}]\t\t{days_age} days old {percent_text}\t\t{num_moves} moves\n\t\t<{table_url}>\n"
+    logger.debug("Sending:" + msg_to_send)
+    await message.channel.send(msg_to_send)
