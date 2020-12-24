@@ -208,7 +208,13 @@ class BGAAccount:
         # options will overwrite defaults if they are there
         defaults.update(options)
         updated_options = defaults
+
+        if "open" not in updated_options \
+           and "restrictgroup" in updated_options:
+            updated_options["open"] = "true"
+
         url_data = []
+        final_url_data = []
         for option in updated_options:
             value = updated_options[option]
             option_data = {}
@@ -275,6 +281,14 @@ class BGAAccount:
             elif option == "lang":
                 option_data["path"] = "/table/table/restrictToLanguage.html"
                 option_data["params"] = {"lang": updated_options[option]}
+            elif option == "open":
+                if updated_options["open"].lower() in {"1", "on", "true", "y", "yes"}:
+                    option_data["path"] = "/table/table/openTableNow.html"
+                    option_data["params"] = {}
+                elif updated_options["open"].lower() in {"0", "off", "false", "n", "no"}:
+                    continue
+                else:
+                    return f"Option `open` should have value `true` or `false`."
             elif option.isdigit():
                 # If this is an HTML option, set it as such
                 option_data["path"] = "/table/table/changeoption.html"
@@ -283,6 +297,7 @@ class BGAAccount:
                 return f"Option {option} not a valid option."
 
             url_data.append(option_data)
+        url_data.extend(final_url_data)
         return url_data
 
     async def get_group_id(self, group_name):
