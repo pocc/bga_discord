@@ -71,7 +71,6 @@ class BGAAccount:
 
     async def post(self, url, params):
         """Generic post."""
-        logger.debug("LOGIN: " + url + "\nEMAIL: " + params["email"])
         async with self.session.post(url, data=params) as response:
             resp_text = await response.text()
             print(f"Posted {url}. Resp: " + resp_text[:80])
@@ -88,6 +87,7 @@ class BGAAccount:
             "form_id": "loginform",
             "dojo.preventCache": str(int(time.time())),
         }
+        logger.debug("LOGIN: " + url + "\nEMAIL: " + params["email"])
         await self.post(url, params)
         return await self.verify_privileged()
 
@@ -388,6 +388,17 @@ class BGAAccount:
         params = {"table": table_id, "dojo.preventCache": str(int(time.time()))}
         url += "?" + urllib.parse.urlencode(params)
         await self.fetch(url)
+
+    async def message_player(self, player_name, msg_to_send):
+        url = self.base_url + "/table/table/say_private.html"
+        player_id = await self.get_player_id(player_name)
+        if player_id == -1:
+            return f"Player {player_name} not found, so message not sent."
+        params = {"to": player_id, "msg": msg_to_send, "dojo.preventCache": str(int(time.time()))}
+        url += "?" + urllib.parse.urlencode(params)
+        logger.debug(f"Sending message to {player_name} with length {len(msg_to_send)}")
+        await self.post(url, params)
+        return "Message sent"
 
     async def close_connection(self):
         """Close the connection. aiohttp complains otherwise."""

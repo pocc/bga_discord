@@ -30,10 +30,12 @@ async def generate_matches_from_bosspile(message):
     game_name = game_name.replace("raceftg", "raceforthegalaxy").replace("rollftg", "rollforthegalaxy")
     # If game isn't a BGA game, then quit this integration
     if not await is_game_valid(game_name):
+        message.channel.send(f"Game {game_name} is not valid")
         logger.debug(f"Game {game_name} is not valid")
         return
-    # There shouldn't be diamonds in the hourglass vs matchups | https://regex101.com/r/H7zgbn/3
-    current_matches_str_list = re.findall(r":hourglass: ([a-zA-Z0-9: ]+)", message.content)
+    # There shouldn't be diamonds in the hourglass vs matchups | https://regex101.com/r/H7zgbn/5
+    # Get all instances of :vs: line and then parse it
+    current_matches_str_list = re.findall(r":hourglass: ([a-zA-Z0-9-_:() ]+)", message.content)
     if current_matches_str_list:
         # Match players is a string that should be splittable with " :vs: " to generate the list
         logger.debug(
@@ -64,7 +66,9 @@ async def generate_matches_from_bosspile(message):
         if p2_text.startswith("<@"):
             p2_discord_id = re.match(r"<@!?(\d+)", p2_text)[1]
             p2_has_account = p2_discord_id in all_logins and len(all_logins[p2_discord_id]["password"])
-        logger.debug(f"Found discord ids for match: {p1_discord_id} {p2_discord_id}")
+        logger.debug(
+            f"Found discord ids for match: {p1_discord_id} with account {p1_has_account} and {p2_discord_id} with account {p2_has_account}",
+        )
         # If p1/p2_text are discord tags or bga names, setup should properly convert either
         if p1_discord_id != -1 and p1_has_account:
             errs = await setup_bga_game(

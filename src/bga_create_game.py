@@ -35,6 +35,10 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
         user_prefs = user_data["bga options"]
     if "bga game options" in user_data:
         all_game_prefs = user_data["bga game options"]
+    if "players" not in options:  # play with exactly as many players as specified
+        author_num = 1
+        num_players = len(players) + author_num
+        options["players"] = f"{num_players}-{num_players}"
     game_name = normalize_name(game)
     if game_name in all_game_prefs:  # game prefs should override global prefs
         user_prefs.update(all_game_prefs[game_name])

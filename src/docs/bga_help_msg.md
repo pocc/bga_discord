@@ -28,6 +28,9 @@ You can run any command interactively by specifying only the command, like `!set
     tables shows the tables that all specified users are playing at.
     To see just the games you are playing at use `tables <your bga username>`.
 
+## **message user1**
+    Send a message to a BGA user. On success, you will see `Message sent`
+
 ## **options**
     Print the available options that can be specified with make.
     Board game arena options must be specified like `speed:slow`.

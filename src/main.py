@@ -10,6 +10,7 @@ from bosspiles_integration import generate_matches_from_bosspile
 from bga_game_list import bga_game_message_list, is_game_valid
 from bga_table_status import get_tables_by_players
 from bga_create_game import setup_bga_game
+from bga_message import send_message
 from creds_iface import setup_bga_account
 from bga_add_friend import add_friends
 from keys import TOKEN
@@ -18,7 +19,7 @@ from menu_root import trigger_interactive_response
 from utils import send_help, force_double_quotes
 
 LOG_FILENAME = "errs"
-SUBCOMMANDS = ["!setup", "!play", "!status", "!help", "!options", "!list", "!friend", "!tfm", "!purge"]
+SUBCOMMANDS = ["!setup", "!play", "!status", "!help", "!options", "!list", "!friend", "!tfm", "!purge", "!message"]
 logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)
 # Add the log message handler to the logger
@@ -55,6 +56,18 @@ async def on_message(message):
         log_received_message(message)
         if message.content.startswith("!tfm"):
             await try_catch(message, init_tfm_game, [message])
+        # separate from other bga commands because we don't want to strip ' and " from message
+        elif message.content.startswith("!msg") or message.content.startswith("!message"):
+            if message.content.count(" ") >= 2:  # equivalent to checking for 3+ args
+                args = message.content.split(" ")
+                dest_author_name = args[1]
+                message_content = " ".join(args[2:])
+                ret_msg = await send_message(message.author.id, dest_author_name, message_content)
+                await message.channel.send(ret_msg)
+            else:
+                await message.channel.send(
+                    "You must specify both a user and a message like `!message friendo Let's play can't stop!`.",
+                )
         else:
             # Preserve command syntax and when there are missing args, go interactive
             try:
