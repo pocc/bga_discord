@@ -1,4 +1,6 @@
 """Utils for various parts of this program"""
+from num2words import num2words
+from unidecode import unidecode
 from urllib.parse import urlparse
 import re
 
@@ -49,7 +51,27 @@ async def send_message_partials(destination, remainder):
 
 
 def normalize_name(game_name):
+    """Generate a string that can be used to uniquely identify a game."""
     return re.sub("[^a-z0-7]+", "", game_name.lower())
+
+
+def simplify_name(game_name):
+    """Generate a string that can be used for comparing/matching the name of a game in a more reliable way than using user input directly."""
+    game_name = game_name.lower()
+    game_name = unidecode(game_name)
+    game_name = re.sub(r"\s+", " ", game_name)
+    game_name = re.sub(r"^the ", "", game_name)
+    game_name = re.sub(r"[!(].*", "", game_name)
+    if not re.search(r"\b(?:builders|through the ages)", game_name):
+        game_name = re.sub(r":.*", "", game_name)
+    game_name = re.sub(r"^voyages of ", "", game_name)
+    game_name = re.sub(r"of miller.?s +hollow$", "", game_name)
+    game_name = re.sub(r" & " , " and ", game_name)
+    game_name = re.sub(r"\bii\b" , "two", game_name)
+    game_name = re.sub(r"\d+", lambda m: num2words(m.group()), game_name)
+    game_name = re.sub(r"[^a-z]+", "", game_name)
+
+    return game_name
 
 
 def force_double_quotes(string):
