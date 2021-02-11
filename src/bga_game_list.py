@@ -129,8 +129,6 @@ async def get_games_by_name_part(name_part):
     games = []
 
     for normalized_name, simplified_name in simplified_games.items():
-        logger.debug(f"normalized_name={normalized_name} simplified_name={simplified_name}")
-        logger.debug(f"name_part={name_part}")
         if simplified_name == simplified_name_part:  # if there's an exact match, take it!
             return [normalized_name]
         elif simplified_name.startswith(simplified_name_part):
