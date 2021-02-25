@@ -162,7 +162,6 @@ class BGAAccount:
         url = self.base_url + "/table/table/createnew.html"
         params = {
             "game": game_id,
-            "gamemode": "async",
             "forceManual": "true",
             "is_meeting": "false",
             "dojo.preventCache": str(int(time.time())),
