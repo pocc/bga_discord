@@ -8,7 +8,7 @@ import time
 
 import aiohttp
 
-from utils import normalize_name
+from utils import normalize_name, simplify_name
 
 logging.getLogger("aiohttp").setLevel(logging.WARN)
 
@@ -88,11 +88,49 @@ def update_games_cache(games):
         f.write(json.dumps(games, indent=2) + "\n")
 
 
-async def is_game_valid(game):
-    # Check if any words are games
+async def is_game_valid(name):
+    return normalize_name(name) in await get_simplified_game_list()
+
+
+async def get_simplified_game_list():
     games, errs = await get_game_list()
     if errs:
         games, errs = get_game_list_from_cache()
-    normalized_games = [normalize_name(g) for g in games]
-    normalized_game = normalize_name(game)
-    return normalized_game in normalized_games
+
+    simplified_games = {}
+    for full_name in games:
+        simplified_games[normalize_name(full_name)] = simplify_name(full_name)
+    return simplified_games
+
+
+async def get_id_by_game(normalized_name):
+    games, errs = await get_game_list()
+    if errs:
+        games, errs = get_game_list_from_cache()
+
+    for title, id in games.items():
+        if normalize_name(title) == normalized_name:
+            return id
+
+
+async def get_title_by_game(normalized_name):
+    games, errs = await get_game_list()
+    if errs:
+        games, errs = get_game_list_from_cache()
+
+    for title in games:
+        if normalize_name(title) == normalized_name:
+            return title
+
+
+async def get_games_by_name_part(name_part):
+    simplified_name_part = simplify_name(name_part)
+    simplified_games = await get_simplified_game_list()
+    games = []
+
+    for normalized_name, simplified_name in simplified_games.items():
+        if simplified_name == simplified_name_part:  # if there's an exact match, take it!
+            return [normalized_name]
+        elif simplified_name.startswith(simplified_name_part):
+            games.append(normalized_name)
+    return games
