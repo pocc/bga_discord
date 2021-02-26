@@ -30,7 +30,7 @@ async def generate_matches_from_bosspile(message):
     game_name = game_name.replace("raceftg", "raceforthegalaxy").replace("rollftg", "rollforthegalaxy")
     # If game isn't a BGA game, then quit this integration
     if not await is_game_valid(game_name):
-        message.channel.send(f"Game {game_name} is not valid")
+        await message.channel.send(f"Game {game_name} is not valid")
         logger.debug(f"Game {game_name} is not valid")
         return
     # There shouldn't be diamonds in the hourglass vs matchups | https://regex101.com/r/H7zgbn/5

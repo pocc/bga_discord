@@ -19,7 +19,20 @@ from menu_root import trigger_interactive_response
 from utils import send_help, force_double_quotes
 
 LOG_FILENAME = "errs"
-SUBCOMMANDS = ["!setup", "!play", "!status", "!help", "!options", "!list", "!friend", "!tfm", "!purge", "!message"]
+SUBCOMMANDS = [
+    "!setup",
+    "!play",
+    "!status",
+    "!help",
+    "!options",
+    "!list",
+    "!list_games",
+    "!friend",
+    "!tfm",
+    "!purge",
+    "!message",
+    "!msg",
+]
 logger = logging.getLogger(__name__)
 logging.getLogger("discord").setLevel(logging.WARN)
 # Add the log message handler to the logger

@@ -102,6 +102,7 @@ def get_bga_alias(game_name):
         "sechsnimmt": "6nimmt",
         "sevenwonders": "7wonders",
         "sevenwondersduel": "7wondersduel",
+        "yatzy": "yahtzee",  # `yatzy` is due to it initially using the French name due to copyright concerns
     }
     if normalize_name(game_name) in aliases:
         return aliases[normalize_name(game_name)]
