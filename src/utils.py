@@ -62,7 +62,10 @@ def simplify_name(game_name):
     game_name = re.sub(r"\s+", " ", game_name)
     game_name = re.sub(r"^the ", "", game_name)
     game_name = re.sub(r"[!(].*", "", game_name)
-    if not re.search(r"\b(?:builders|through the ages)", game_name):
+    if not re.search(
+            r"\b(?:builders|carcassonne|through the ages)\b",
+            game_name
+    ):
         game_name = re.sub(r":.*", "", game_name)
     game_name = re.sub(r"^voyages of ", "", game_name)
     game_name = re.sub(r"of miller.?s +hollow$", "", game_name)
