@@ -9,6 +9,8 @@ You can run these commands interactively: `!play`, or `!status`. `!setup` is a w
     List all of the 100+ games on Board Game Arena. Can also be called with `!list_games` if it's being used by some other bot.
 
 ## **!setup bga_username bga_password**
+    Note: bga_username and bga_password are your username and password on BGA. Do not add `bga_` to either.
+
     setup is used to save your BGA username and password so
     this bot can create game tables on your behalf. This bot
     will delete this message after you send it if it is sent

@@ -1,4 +1,5 @@
 *keys*
+*.db
 *.swp
 *cache*/
 .idea/

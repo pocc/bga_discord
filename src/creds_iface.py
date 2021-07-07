@@ -113,10 +113,10 @@ async def setup_bga_account(message, bga_username, bga_password):
     if message.guild:
         await message.delete()
     account = BGAAccount()
-    logged_in = await account.login(bga_username, bga_password)
-    player_id = await account.get_player_id(bga_username)
-    await account.logout()
-    await account.close_connection()
+    logged_in = account.login(bga_username, bga_password)
+    player_id = account.get_player_id(bga_username)
+    account.logout()
+    account.close_connection()
     if logged_in:
         save_data(discord_id, bga_userid=player_id, username=bga_username, password=bga_password)
         await message.channel.send(
@@ -140,7 +140,7 @@ async def get_active_session(discord_id):
     if login_info["password"] == "":
         return None, "You have to sign in to host a game. Run `!bga` to get info on setup."
     account = BGAAccount()
-    logged_in = await account.login(login_info["username"], login_info["password"])
+    logged_in = account.login(login_info["username"], login_info["password"])
     if logged_in:
         return account, None
     else:

@@ -6,10 +6,8 @@ import re
 import time
 import urllib.parse
 
-import aiohttp
+import requests
 from bga_game_list import get_game_list
-
-logging.getLogger("aiohttp").setLevel(logging.WARN)
 
 LOG_FILENAME = "errs"
 logger = logging.getLogger(__name__)
@@ -57,25 +55,32 @@ class BGAAccount:
     """Account user/pass and methods to login/create games with it."""
 
     def __init__(self):
-        self.session = aiohttp.ClientSession()
         self.base_url = "https://boardgamearena.com"
+        self.session = requests.Session()
+        # Get CSRF token from login pagetext
+        resp = self.session.get(self.base_url + "/account")
+        resp_text = resp.text
+        csrf_token_match = re.search(r"id='csrf_token' value='([0-9a-f]*)'", resp_text)
+        if not csrf_token_match:
+            return False  # Return error condition
+        self.csrf_token = csrf_token_match[1]
 
-    async def fetch(self, url):
+    def fetch(self, url):
         """Generic get."""
         logger.debug("\nGET: " + url)
-        async with self.session.get(url) as response:
-            resp_text = await response.text()
+        with self.session.get(url) as response:
+            resp_text = response.text
             if resp_text[0] in ["{", "["]:  # If it's a json
                 print(f"Fetched {url}. Resp: " + resp_text[:80])
             return resp_text
 
-    async def post(self, url, params):
+    def post(self, url, params):
         """Generic post."""
-        async with self.session.post(url, data=params) as response:
-            resp_text = await response.text()
+        with self.session.post(url, data=params) as response:
+            resp_text = response.text
             print(f"Posted {url}. Resp: " + resp_text[:80])
 
-    async def login(self, username, password):
+    def login(self, username, password):
         """Login to BGA provided the username/password. The session will
         now have cookies to use for privileged actions."""
         url = self.base_url + "/account/account/login.html"
@@ -83,25 +88,26 @@ class BGAAccount:
             "email": username,
             "password": password,
             "rememberme": "on",
-            "redirect": "join",
+            "redirect": "",
+            "csrf_token": self.csrf_token,
             "form_id": "loginform",
             "dojo.preventCache": str(int(time.time())),
         }
-        logger.debug("LOGIN: " + url + "\nEMAIL: " + params["email"])
-        await self.post(url, params)
-        return await self.verify_privileged()
+        logger.debug("LOGIN: " + url + "\nEMAIL: " + params["email"] + "\ncsrf_token:" + self.csrf_token)
+        self.post(url, params)
+        return self.verify_privileged()
 
-    async def logout(self):
+    def logout(self):
         """Logout of current session."""
         url = self.base_url + "/account/account/logout.html"
         params = {"dojo.preventCache": str(int(time.time()))}
         url += "?" + urllib.parse.urlencode(params)
-        await self.fetch(url)
+        self.fetch(url)
 
-    async def quit_table(self):
+    def quit_table(self):
         """ Quit the table if the player is currently at one"""
         url = self.base_url + "/player"
-        resp = await self.fetch(url)
+        resp = self.fetch(url)
         # Some version of "You are playing" or "Playing now at:"
         matches = re.search(r"[Pp]laying[^<]*<a href=\"\/table\?table=(\d+)", resp)
         if matches is not None:
@@ -115,24 +121,24 @@ class BGAAccount:
                 "dojo.preventCache": str(int(time.time())),
             }
             quit_url += "?" + urllib.parse.urlencode(params)
-            await self.fetch(quit_url)
+            self.fetch(quit_url)
 
-    async def quit_playing_with_friends(self):
+    def quit_playing_with_friends(self):
         """There is a BGA feature called "playing with friends". Remove friends from the session"""
         quit_url = self.base_url + "/group/group/removeAllFromGameSession.html"
         params = {"dojo.preventCache": str(int(time.time()))}
         quit_url += "?" + urllib.parse.urlencode(params)
-        await self.fetch(quit_url)
+        self.fetch(quit_url)
 
-    async def create_table(self, game_name_part):
+    def create_table(self, game_name_part):
         """Create a table and return its url. 201,0 is to set to normal mode.
         Partial game names are ok, like race for raceforthegalaxy.
         Returns (table id (int), error string (str))"""
         # Try to close any logged-in session gracefully
         lower_game_name = re.sub(r"[^a-z0-9]", "", game_name_part.lower())
-        await self.quit_table()
-        await self.quit_playing_with_friends()
-        games, err_msg = await get_game_list()
+        self.quit_table()
+        self.quit_playing_with_friends()
+        games, err_msg = get_game_list()
         if len(err_msg) > 0:
             return -1, err_msg
         lower_games = {}
@@ -167,7 +173,7 @@ class BGAAccount:
             "dojo.preventCache": str(int(time.time())),
         }
         url += "?" + urllib.parse.urlencode(params)
-        resp = await self.fetch(url)
+        resp = self.fetch(url)
         try:
             resp_json = json.loads(resp)
         except json.decoder.JSONDecodeError:
@@ -182,22 +188,22 @@ class BGAAccount:
         table_id = resp_json["data"]["table"]
         return table_id, ""
 
-    async def set_table_options(self, options, table_id):
-        url_data = await self.parse_options(options, table_id)
+    def set_table_options(self, options, table_id):
+        url_data = self.parse_options(options, table_id)
         if isinstance(url_data, str):  # In this case it's an error
             return url_data
         logger.debug("Got url data :" + str(url_data))
         for url_datum in url_data:
-            await self.set_option(table_id, url_datum["path"], url_datum["params"])
+            self.set_option(table_id, url_datum["path"], url_datum["params"])
 
-    async def set_option(self, table_id, path, params):
+    def set_option(self, table_id, path, params):
         """Change the game options for the specified."""
         url = self.base_url + path
         params.update({"table": table_id, "dojo.preventCache": str(int(time.time()))})
         url += "?" + urllib.parse.urlencode(params)
-        await self.fetch(url)
+        self.fetch(url)
 
-    async def parse_options(self, options, table_id):
+    def parse_options(self, options, table_id):
         """Create url data that can be parsed as urls"""
         # Set defaults if they're not present
         defaults = {
@@ -261,7 +267,7 @@ class BGAAccount:
                 option_data["params"] = {"minp": minp, "maxp": maxp}
             elif option == "restrictgroup":
                 option_data["path"] = "/table/table/restrictToGroup.html"
-                group_options = await self.get_group_options(table_id)
+                group_options = self.get_group_options(table_id)
                 group_id = -1
                 for group_o in group_options:
                     if group_o[1].startswith(value):
@@ -284,46 +290,46 @@ class BGAAccount:
             url_data.append(option_data)
         return url_data
 
-    async def get_group_id(self, group_name):
+    def get_group_id(self, group_name):
         """For BGA groups of people."""
         uri_vars = {"q": group_name, "start": 0, "count": "Infinity"}
         group_uri = urllib.parse.urlencode(uri_vars)
         full_url = self.base_url + f"/group/group/findgroup.html?{group_uri}"
-        result_str = await self.fetch(full_url)
+        result_str = self.fetch(full_url)
         result = json.loads(result_str)
         group_id = result["items"][0]["id"]  # Choose ID of first result
         logger.debug(f"Found {group_id} for group {group_name}")
         return group_id
 
-    async def create_table_url(self, table_id):
+    def create_table_url(self, table_id):
         """Given the table id, make the table url."""
         return self.base_url + "/table?table=" + str(table_id)
 
-    async def verify_privileged(self):
+    def verify_privileged(self):
         """Verify that the user is logged in by accessing a url they should have access to."""
-        community_text = await self.fetch(self.base_url + "/community")
+        community_text = self.fetch(self.base_url + "/community")
         return "You must be logged in to see this page." not in community_text
 
-    async def get_group_options(self, table_id):
+    def get_group_options(self, table_id):
         """The friend group id is unique to every user. Search the table HTML for it."""
         table_url = self.base_url + "/table?table=" + str(table_id)
-        html_text = await self.fetch(table_url)
+        html_text = self.fetch(table_url)
         restrict_group_select = re.search(r'<select id="restrictToGroup">([\s\S]*?)<\/select>', html_text)[0]
         options = re.findall(r'"(\d*)">([^<]*)', restrict_group_select)
         return options
 
-    async def get_player_id(self, player):
+    def get_player_id(self, player):
         """Given the name of a player, get their player id."""
         url = self.base_url + "/player/player/findplayer.html"
         params = {"q": player, "start": 0, "count": "Infinity"}
         url += "?" + urllib.parse.urlencode(params)
-        resp = await self.fetch(url)
+        resp = self.fetch(url)
         resp_json = json.loads(resp)
         if len(resp_json["items"]) == 0:
             return -1
         return resp_json["items"][0]["id"]
 
-    async def invite_player(self, table_id, player_id):
+    def invite_player(self, table_id, player_id):
         """Invite a player to a table you are creating."""
         url = self.base_url + "/table/table/invitePlayer.html"
         params = {
@@ -332,7 +338,7 @@ class BGAAccount:
             "dojo.preventCache": str(int(time.time())),
         }
         url += "?" + urllib.parse.urlencode(params)
-        resp = await self.fetch(url)
+        resp = self.fetch(url)
         resp_json = json.loads(resp)
         if "status" in resp_json:
             if resp_json["status"] == "0":
@@ -342,30 +348,30 @@ class BGAAccount:
         else:
             raise IOError("Problem encountered: " + str(resp))
 
-    async def add_friend(self, friend_name):
-        friend_id = await self.get_player_id(friend_name)
+    def add_friend(self, friend_name):
+        friend_id = self.get_player_id(friend_name)
         if friend_id == -1:
             return f"Player {friend_name} not found. Make sure they exist and check spelling."
         params = {"id": friend_id, "dojo.preventCache": str(int(time.time()))}
         path = "?" + urllib.parse.urlencode(params)
-        await self.fetch(self.base_url + "/community/community/addToFriend.html" + path)
+        self.fetch(self.base_url + "/community/community/addToFriend.html" + path)
 
-    async def get_tables(self, player_id):
+    def get_tables(self, player_id):
         """Get all of the tables that a player is playing at. Tables are returned as json objects."""
         url = self.base_url + "/tablemanager/tablemanager/tableinfos.html"
         params = {"playerfilter": player_id, "dojo.preventCache": str(int(time.time()))}
         url += "?" + urllib.parse.urlencode(params)
-        resp = await self.fetch(url)
+        resp = self.fetch(url)
         resp_json = json.loads(resp)
         return resp_json["data"]["tables"]
 
-    async def get_table_metadata(self, table_data):
+    def get_table_metadata(self, table_data):
         """Get the numbure of moves and progress of the game as strings"""
         table_id = table_data["id"]
         game_server = table_data["gameserver"]
         game_name = table_data["game_name"]
         table_url = f"{self.base_url}/{game_server}/{game_name}?table={table_id}"
-        resp = await self.fetch(table_url)
+        resp = self.fetch(table_url)
         game_progress_match = re.search('updateGameProgression":"([^"]*)"', resp)
         if game_progress_match:
             game_progress = game_progress_match[1]
@@ -378,7 +384,7 @@ class BGAAccount:
             num_moves = ""
         return game_progress, num_moves, table_url
 
-    async def open_table(self, table_id):
+    def open_table(self, table_id):
         """Function to open the table to other people for a specific table.
         You must have created the table to be able to use this function.
         example get url https://boardgamearena.com/table/table/openTableNow.html?table=121886720&dojo.preventCache=1604627527457
@@ -386,19 +392,19 @@ class BGAAccount:
         url = self.base_url + "/table/table/openTableNow.html"
         params = {"table": table_id, "dojo.preventCache": str(int(time.time()))}
         url += "?" + urllib.parse.urlencode(params)
-        await self.fetch(url)
+        self.fetch(url)
 
-    async def message_player(self, player_name, msg_to_send):
+    def message_player(self, player_name, msg_to_send):
         url = self.base_url + "/table/table/say_private.html"
-        player_id = await self.get_player_id(player_name)
+        player_id = self.get_player_id(player_name)
         if player_id == -1:
             return f"Player {player_name} not found, so message not sent."
         params = {"to": player_id, "msg": msg_to_send, "dojo.preventCache": str(int(time.time()))}
         url += "?" + urllib.parse.urlencode(params)
         logger.debug(f"Sending message to {player_name} with length {len(msg_to_send)}")
-        await self.post(url, params)
+        self.post(url, params)
         return "Message sent"
 
-    async def close_connection(self):
+    def close_connection(self):
         """Close the connection. aiohttp complains otherwise."""
-        await self.session.close()
+        self.session.close()

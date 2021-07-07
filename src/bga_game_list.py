@@ -6,7 +6,7 @@ import os
 import re
 import time
 
-import aiohttp
+import requests
 
 from utils import normalize_name
 
@@ -24,28 +24,28 @@ logger.setLevel(logging.DEBUG)
 GAME_LIST_PATH = "src/bga_game_list.json"
 
 
-async def get_game_list_from_cache():
+def get_game_list_from_cache():
     with open(GAME_LIST_PATH, "r") as f:
         logger.debug("Loading game list from cache because the game list has been checked in the last week.")
         return json.loads(f.read()), ""
 
 
-async def get_game_list():
+def get_game_list():
     """Get the list of games and numbers BGA assigns to each game.
     The url below should be accessible unauthenticated (test with curl).
     """
     oneweek = 604800
     if time.time() - oneweek < os.path.getmtime(GAME_LIST_PATH):
-        return await get_game_list_from_cache()
+        return get_game_list_from_cache()
     url = "https://boardgamearena.com/gamelist?section=all"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
+    with requests.Session() as session:
+        with session.get(url) as response:
             if response.status >= 400:
                 # If there's a problem with getting the most accurate list, use cached version
                 with open(GAME_LIST_PATH, "r") as f:
                     logger.debug("Loading game list from cache because BGA was unavailable")
                     return json.loads(f.read()), ""
-            html = await response.text()
+            html = response.text
             # Parse an HTML list
             results = re.findall(r"item_tag_\d+_(\d+)[\s\S]*?name\">\s+([^<>]*)\n", html)
             # Sorting games so when writing, git picks up on new entries
@@ -59,9 +59,9 @@ async def get_game_list():
             return games, ""
 
 
-async def bga_game_message_list():
+def bga_game_message_list():
     """List the games that BGA currently offers as a list of str messages less than 1000 chars."""
-    game_data, err_msg = await get_game_list()
+    game_data, err_msg = get_game_list()
     if len(err_msg) > 0:
         return err_msg
     game_list = list(game_data.keys())
@@ -90,7 +90,7 @@ def update_games_cache(games):
 
 async def is_game_valid(game):
     # Check if any words are games
-    games, errs = await get_game_list()
+    games, errs = get_game_list()
     if errs:
         games, errs = get_game_list_from_cache()
     normalized_games = [normalize_name(g) for g in games]

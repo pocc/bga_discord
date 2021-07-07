@@ -46,8 +46,8 @@ async def setup_bga_game(message, p1_discord_id, game, players, options):
     table_msg = await message.channel.send("Creating table...")
     await create_bga_game(message, account, game, players, p1_discord_id, options)
     await table_msg.delete()
-    await account.logout()  # Probably not necessary
-    await account.close_connection()
+    account.logout()  # Probably not necessary
+    account.close_connection()
     return ""
 
 
@@ -58,27 +58,27 @@ async def create_bga_game(message, bga_account, game, players, p1_id, options):
     error_players = []
     bga_discord_user_map = await find_bga_users(players, error_players)
     bga_players = list(bga_discord_user_map.keys())
-    table_id, create_err = await bga_account.create_table(game)
+    table_id, create_err = bga_account.create_table(game)
     if len(create_err) > 0:
         await message.channel.send(create_err)
         return
     valid_bga_players = []
     invited_players = []
-    err_msg = await bga_account.set_table_options(options, table_id)
+    err_msg = bga_account.set_table_options(options, table_id)
     if err_msg:
         await message.channel.send(err_msg)
         return
-    table_url = await bga_account.create_table_url(table_id)
+    table_url = bga_account.create_table_url(table_id)
     author_bga = get_login(p1_id)["username"]
     # Don't invite the creator to their own game!
     if author_bga in bga_players:
         bga_players.remove(author_bga)
     for bga_player in bga_players:
-        bga_player_id = await bga_account.get_player_id(bga_player)
+        bga_player_id = bga_account.get_player_id(bga_player)
         if bga_player_id == -1:
             error_players.append(f"`{bga_player}` is not a BGA player")
         else:
-            error = await bga_account.invite_player(table_id, bga_player_id)
+            error = bga_account.invite_player(table_id, bga_player_id)
             if len(error) > 0:  # If there's error text
                 error_players.append(f"Unable to add `{bga_player}` because {error}")
             else:
