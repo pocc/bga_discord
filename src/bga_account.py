@@ -60,10 +60,12 @@ class BGAAccount:
         # Get CSRF token from login pagetext
         resp = self.session.get(self.base_url + "/account")
         resp_text = resp.text
-        csrf_token_match = re.search(r"id='csrf_token' value='([0-9a-f]*)'", resp_text)
-        if not csrf_token_match:
-            return False  # Return error condition
-        self.csrf_token = csrf_token_match[1]
+        # example: <input type='hidden' name='request_token' id='request_token' value='soJoMkn9CHYUDg6' />
+        request_token_match = re.search(r"id='request_token' value='([0-9a-f]*)'", resp_text)
+        if not request_token_match:
+            print("Error text\n" + resp_text)  # Return error condition
+            return False
+        self.request_token = request_token_match[1]
 
     def fetch(self, url):
         """Generic get."""
@@ -89,11 +91,11 @@ class BGAAccount:
             "password": password,
             "rememberme": "on",
             "redirect": "",
-            "csrf_token": self.csrf_token,
+            "request_token": self.request_token,
             "form_id": "loginform",
             "dojo.preventCache": str(int(time.time())),
         }
-        logger.debug("LOGIN: " + url + "\nEMAIL: " + params["email"] + "\ncsrf_token:" + self.csrf_token)
+        logger.debug("LOGIN: " + url + "\nEMAIL: " + params["email"] + "\ncsrf_token:" + self.request_token)
         self.post(url, params)
         return self.verify_privileged()
 
@@ -105,7 +107,7 @@ class BGAAccount:
         self.fetch(url)
 
     def quit_table(self):
-        """ Quit the table if the player is currently at one"""
+        """Quit the table if the player is currently at one"""
         url = self.base_url + "/player"
         resp = self.fetch(url)
         # Some version of "You are playing" or "Playing now at:"

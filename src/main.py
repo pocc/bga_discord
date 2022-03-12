@@ -6,7 +6,6 @@ import traceback
 import shlex
 
 import discord
-from bosspiles_integration import generate_matches_from_bosspile
 from bga_game_list import bga_game_message_list, is_game_valid
 from bga_table_status import get_tables_by_players
 from bga_create_game import setup_bga_game
@@ -110,10 +109,6 @@ async def on_message(message):
             await try_catch(message, trigger_interactive_response, [message, contexts, "timeout", []])
         else:
             await try_catch(message, trigger_interactive_response, [message, contexts, "timeout", []])
-    # Integration with Bosspiles bot
-    elif message.author.id == 713362507770626149 and ":vs:" in message.content:
-        logger.debug("Bosspile integration has been triggered.")
-        await try_catch(message, generate_matches_from_bosspile, [message])
 
 
 def log_received_message(message):

@@ -34,13 +34,13 @@ def get_game_list():
     """Get the list of games and numbers BGA assigns to each game.
     The url below should be accessible unauthenticated (test with curl).
     """
-    oneweek = 604800
-    if time.time() - oneweek < os.path.getmtime(GAME_LIST_PATH):
+    sixhours = 21600
+    if time.time() - sixhours < os.path.getmtime(GAME_LIST_PATH):
         return get_game_list_from_cache()
     url = "https://boardgamearena.com/gamelist?section=all"
     with requests.Session() as session:
         with session.get(url) as response:
-            if response.status >= 400:
+            if response.status_code >= 400:
                 # If there's a problem with getting the most accurate list, use cached version
                 with open(GAME_LIST_PATH, "r") as f:
                     logger.debug("Loading game list from cache because BGA was unavailable")

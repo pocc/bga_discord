@@ -69,6 +69,19 @@ Board options start with `b`: `bt` for tharsis, `bh` for hellas, `be` for elysiu
     Enable players to undo their first move of each turn (requires refresh).
 - `w` **solarPhaseOption** (World Government Terraforming)
     At the end of each generation, the active player raises a global parameter of his/her choice, without gaining any TR or bonuses from this action.
+- `R` **randomFirstPlayer**
+    First player is chosen at random
+- `A` **aresExtension**
+    Ares fan expansion
+- `M` **moonExpansion**
+    Moon fan expansion
+- `S` **showTimers**
+    requiresVenusTrackCompletion
+    "requiresMoonTrackCompletion",
+    "moonStandardProjectVariant",
+    "altVenusBoard"
+
+
 
 ## **Unimplemented** (bug Ross if this bugs you)
 

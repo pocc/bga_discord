@@ -23,6 +23,11 @@ logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
 
+{
+    "randomMA": "Full random",
+}
+
+
 AVAILABLE_TFM_OPTIONS = [
     "customCorporationsList",
     "customColoniesList",
@@ -41,7 +46,7 @@ AVAILABLE_TFM_OPTIONS = [
     "promoCardsOption",
     "fastModeOption",
     "undoOption",
-    "randomMA",
+    "randomMA",  # Options are "Full random", "Limited synergy", or "No randomization"
     "removeNegativeGlobalEventsOption",
     "draftVariant",
     "showOtherPlayersVP",
@@ -50,8 +55,16 @@ AVAILABLE_TFM_OPTIONS = [
     "initialDraft",
     "shuffleMapOption",
     "startingCorporations",
-    "beginner",
+    "beginnerOption",
     "handicap",
+    "randomFirstPlayer",
+    "aresExtension",
+    "moonExpansion",
+    "showTimers",
+    "requiresVenusTrackCompletion",
+    "requiresMoonTrackCompletion",
+    "moonStandardProjectVariant",
+    "altVenusBoard",
 ]
 
 
@@ -95,7 +108,7 @@ class TFMGame:
             "cardsBlackList": [],
             "seed": random.random(),
         }
-        boards = {"r": "random", "h": "hellas", "e": "elysium", "t": "tharsis"}
+        boards = {"r": "random official", "h": "hellas", "e": "elysium", "t": "tharsis"}
         if "b" in global_opts:
             b_pos = global_opts.index("b")
             board_letter = global_opts[b_pos + 1]
@@ -134,6 +147,14 @@ class TFMGame:
             "soloTR": choose_option(global_opts, players, "l"),
             "initialDraft": choose_option(global_opts, players, "i"),
             "shuffleMapOption": choose_option(global_opts, players, "m"),
+            # "randomFirstPlayer",
+            # "aresExtension",
+            # "moonExpansion",
+            # "showTimers",
+            # "requiresVenusTrackCompletion",
+            # "requiresMoonTrackCompletion",
+            # "moonStandardProjectVariant",
+            # "altVenusBoard"
         }
 
         # default to 2 corporations
