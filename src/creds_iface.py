@@ -36,12 +36,7 @@ def save_data(
     """save data."""
     user_json = get_all_logins()
     if purge_data:
-        # Keep username. User can rename themselves if they want.
-        if "username" in user_json[str(discord_id)]:
-            username = user_json[str(discord_id)]["username"]
-            user_json[str(discord_id)] = {"username": username}
-        else:
-            user_json[str(discord_id)] = {}
+        del user_json[str(discord_id)]
         write_data(user_json)
         return
     if str(discord_id) not in user_json:
