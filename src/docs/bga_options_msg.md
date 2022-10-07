@@ -65,4 +65,6 @@ The default is marked with a *
 **lang**: ISO639-1 language code like en, es, fr, de. To find yours: en.wikipedia.org/wiki/List_of_ISO_639-1_codes
     Default language is none
 
+**open**: If `true`, the table will be immediately opened for joining. Defaults to `true` if and only if `restrictgroup` is set.
+
 _You can also specify options/values like 200:12 if you know what they are by looking at the HTML._
